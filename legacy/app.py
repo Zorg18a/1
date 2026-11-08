@@ -1,13 +1,14 @@
 # MediaHub v2: локальный загрузчик + библиотека. Движок — yt-dlp[default], ffmpeg/deno берутся из папки ffmpeg рядом.
-import sys, base64, hmac, secrets, http.client, json, os, re, subprocess, shutil, sqlite3, threading, queue, time, webbrowser, urllib.request, itertools, http.cookiejar, mimetypes
+import sys, base64, hmac, secrets, http.client, json, os, re, subprocess, shutil, sqlite3, threading, time, webbrowser, urllib.request, itertools, http.cookiejar, mimetypes
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from urllib.parse import urlparse, urljoin, unquote, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
 from storage.database import open_database, execute
 from core import gamelib
+from core.classify import classify
+from core.job_queue import JobQueue
 from legacy import gamesweep
 
 mimetypes.add_type('image/avif', '.avif')
@@ -20,7 +21,7 @@ cfg = {'folder': str(Path.home() / 'Downloads' / 'MediaHub'), 'workers': 3, 'ski
        'res': 'best', 'afmt': 'mp3', 'subs_on': False, 'subs_langs': 'ru,en', 'thumbs': True, 'depth': 1, 'maxp': 100, 'videos': True}
 if CFG.exists(): cfg.update(json.loads(CFG.read_text('utf-8')))
 db, lock = open_database(BASE / 'library.db')
-Q, jobs, ids, prev, _op = queue.Queue(), {}, itertools.count(1), {}, [None]
+jobs, ids, prev, _op = {}, itertools.count(1), {}, [None]
 VID = {'.mp4', '.mkv', '.webm', '.mov', '.avi', '.flv', '.m4v'}; AUD = {'.mp3', '.m4a', '.opus', '.flac', '.wav', '.ogg', '.aac'}
 
 def sql(s, a=()):
@@ -584,28 +585,13 @@ def preview(tok, d):
     p['finished'] = True
 
 # ---------- очередь / расписание ----------
-def enqueue(j):
-    jobs[j['id']] = j
-    if j['start_at'] > time.time():
-        j['status'] = 'запланировано ' + datetime.fromtimestamp(j['start_at']).strftime('%d.%m %H:%M')
-        t = threading.Timer(j['start_at'] - time.time(), fire, (j,)); t.daemon = True; t.start()
-    else: Q.put(j)
-def fire(j):
-    if j['cancel']: return
-    j['status'] = 'в очереди'; Q.put(j)
-    if j['daily']: enqueue(dict(j, id=next(ids), start_at=j['start_at'] + 86400, cancel=False, pct=0, speed=0))
-_wk = [0]
+def run_job(j):
+    return ({'site': crawl, 'manga': manga, 'mangaurl': manga_site, 'mangabrowser': manga_browser, 'gamecard': game_card, 'gamecheck': game_check}.get(j['kind'], media))(j)
+scheduler = JobQueue(jobs, ids, run_job)
+enqueue, fire = scheduler.enqueue, scheduler.fire
 def spawn_workers():
     cfg['workers'] = max(1, min(12, int(cfg.get('workers') or 3)))
-    while _wk[0] < cfg['workers']: threading.Thread(target=worker, daemon=True).start(); _wk[0] += 1
-def worker():
-    while True:
-        j = Q.get()
-        if j['cancel']: j['status'] = 'отменено'; continue
-        j['status'] = 'качается'
-        try: ({'site': crawl, 'manga': manga, 'mangaurl': manga_site, 'mangabrowser': manga_browser, 'gamecard': game_card, 'gamecheck': game_check}.get(j['kind'], media))(j); j['status'] = 'отменено' if j['cancel'] else j.pop('final', 'готово'); j['pct'] = 100
-        except Exception as e: j['status'] = 'отменено' if j['cancel'] else 'ошибка: ' + str(e)[:150]
-        j['speed'] = 0
+    scheduler.spawn_workers(cfg['workers'])
 
 # ---------- расширение браузера: входящие вкладки ----------
 for c_ in ('src', 'tracked int default 0', 'checked', 'info'):
@@ -621,21 +607,6 @@ ACT = {'manga': ['download', 'track', 'link', 'skip'], 'video': ['download', 'li
        'podcast': ['link', 'track', 'skip'], 'game': ['gamecard', 'link', 'skip'], 'unknown': ['link', 'site', 'skip']}
 DEFAULT = {'manga': 'download', 'video': 'download', 'playlist': 'download', 'audio': 'download', 'podcast': 'link', 'game': 'link', 'unknown': 'link'}
 JOBK = {'manga': 'mangaurl', 'video': 'video', 'playlist': 'video', 'audio': 'audio', 'unknown': 'site'}
-def classify(url):  # тип материала и ключ для поиска в библиотеке (по адресу, без запросов в сеть)
-    u = urlparse(url); h = (u.hostname or '').lower(); h = h[4:] if h.startswith('www.') else h; q = parse_qs(u.query); p = u.path; r = {'kind': 'unknown', 'host': h, 'key': url}
-    m = re.match(r'^/manga/([a-z0-9-]+)', p)
-    if h == 'senkuro.me' and m: return dict(r, kind='manga', key='manga:' + m.group(1), norm=f'https://senkuro.me/manga/{m.group(1)}')
-    if h in ('youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be'):
-        vid = p.strip('/') if h == 'youtu.be' else (q.get('v') or [''])[0]; lst = (q.get('list') or [''])[0]
-        if p == '/playlist' and lst: return dict(r, kind='playlist', key='https://www.youtube.com/playlist?list=' + lst)
-        if p.startswith(('/@', '/channel/', '/c/', '/user/')): return dict(r, kind='playlist', key=url.split('?')[0].split('#')[0])
-        if vid: return dict(r, kind='audio' if h == 'music.youtube.com' else 'video', key='https://www.youtube.com/watch?v=' + vid)
-    if h in ('vimeo.com', 'rutube.ru', 'dailymotion.com', 'twitch.tv', 'bilibili.com', 'ok.ru', 'vkvideo.ru', 'tiktok.com'): return dict(r, kind='video')
-    if h in ('soundcloud.com', 'bandcamp.com') or h.endswith('.bandcamp.com'): return dict(r, kind='audio')
-    if h == 'podcasts.apple.com' or (h == 'open.spotify.com' and p.startswith('/show')) or p.endswith(('.rss', '.xml')): return dict(r, kind='podcast')
-    if h == 'f95zone.to' and p.startswith('/threads/'): return dict(r, kind='game', key=gamelib.thread_key(url))
-    if h in ('store.steampowered.com', 'steamcommunity.com', 'gog.com', 'itch.io', 'store.epicgames.com') or h.endswith('.itch.io'): return dict(r, kind='game')
-    return r
 def new_job(url, kind, **kw):
     j = {'id': next(ids), 'url': url, 'kind': kind, 'res': cfg['res'], 'afmt': cfg['afmt'], 'depth': int(cfg['depth']), 'maxp': int(cfg['maxp']), 'videos': bool(cfg['videos']), 'sel': [], 'first': 0, 'last': 0,
          'topic': '', 'subs': cfg['subs_langs'] if cfg['subs_on'] else '', 'thumbs': bool(cfg['thumbs']), 'start_at': 0.0, 'daily': False, 'status': 'в очереди', 'pct': 0, 'title': url, 'speed': 0, 'eta': 0, 'cancel': False}
@@ -1067,8 +1038,8 @@ class H(BaseHTTPRequestHandler):
             return self.js({'ok': bool(t and os.path.exists(t) and gamesweep.reveal(t))})
         if p == '/api/game/add': return self.js({'job': new_job(gamelib.thread_key(str(d.get('url') or '').strip()), 'gamecard', title=str(d.get('url'))[:120])}) if str(d.get('url') or '').startswith('http') else self.js({'error': 'нужна ссылка на тему игры'})
         if p == '/api/game/check':
-            ids = [d['id']] if d.get('id') else None
-            return self.js({'job': new_job('games:check', 'gamecheck', ids=ids, title='Проверка игр')})
+            game_ids = [d['id']] if d.get('id') else None
+            return self.js({'job': new_job('games:check', 'gamecheck', ids=game_ids, title='Проверка игр')})
         if p == '/api/game/set':
             r = sql("select * from items where id=? and kind='game'", (d.get('id'),))
             if r:
