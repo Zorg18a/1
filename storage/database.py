@@ -2,6 +2,8 @@
 import sqlite3
 import threading
 
+from storage import game_tags
+
 
 def open_database(path):
     db = sqlite3.connect(path, check_same_thread=False)
@@ -11,6 +13,7 @@ def open_database(path):
     if 'thumb' not in columns:
         db.execute('alter table items add column thumb')
     db.execute('create table if not exists progress(slug primary key, cid, page int)')
+    game_tags.initialize(db)
     db.commit()
     return db, threading.Lock()
 

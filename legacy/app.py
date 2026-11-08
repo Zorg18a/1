@@ -5,9 +5,11 @@ from urllib.parse import urlparse, urljoin, unquote, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from storage.database import open_database, execute
+from storage import game_tags
 from core import gamelib
 from core.classify import classify
 from core.game_sources import quick_game_request
+from core.game_tags import save_tags_request
 from core.job_queue import JobQueue
 from legacy import gamesweep
 mimetypes.add_type('image/avif', '.avif'); mimetypes.add_type('text/javascript', '.js')
@@ -22,7 +24,6 @@ if CFG.exists(): cfg.update(json.loads(CFG.read_text('utf-8')))
 db, lock = open_database(BASE / 'library.db')
 jobs, ids, prev, _op = {}, itertools.count(1), {}, [None]
 VID = {'.mp4', '.mkv', '.webm', '.mov', '.avi', '.flv', '.m4v'}; AUD = {'.mp3', '.m4a', '.opus', '.flac', '.wav', '.ogg', '.aac'}
-
 def sql(s, a=()):
     return execute(db, lock, s, a)
 def safe(s): return re.sub(r'[\\/:*?"<>|]+', '_', str(s or '')).strip()[:100] or 'Unknown'
@@ -43,7 +44,6 @@ def scan():  # подхватывает файлы, которых нет в б�
         for f in d.rglob('*'):
             if f.suffix.lower() in ex and str(f) not in have and not re.search(r'\.f\d+\.', f.name):
                 add(f.stem, f.parent.name if f.parent != d else 'Unknown', 'Разное', kind, f, 'file:' + str(f))
-
 NOWIN = 0x08000000 if os.name == 'nt' else 0; _bf = [False]
 def backfill():  # обложка-кадр для видео, у которых её нет (старые загрузки, обложки отключали)
     if _bf[0]: return
@@ -60,7 +60,6 @@ def backfill():  # обложка-кадр для видео, у которых 
                 except Exception: pass
             if out.exists(): sql('update items set thumb=? where id=?', (str(out), r['id']))
     finally: _bf[0] = False
-
 def fmt(kind, r): return 'bestaudio/best' if kind == 'audio' else ('bv*+ba/b' if r == 'best' else f'bv*[height<={r}]+ba/b[height<={r}]')
 def base():
     o = {'quiet': True, 'no_warnings': True, 'remote_components': ['ejs:github']}
@@ -68,7 +67,6 @@ def base():
     elif cfg['cookie_browser']: o['cookiesfrombrowser'] = (cfg['cookie_browser'],)
     if FF.exists(): o['ffmpeg_location'] = str(FF)
     return o
-
 # ---------- видео / аудио ----------
 def media(job):  # видео/аудио; плейлисты и каналы разворачиваются и качаются несколькими потоками сразу
     import yt_dlp
@@ -536,8 +534,8 @@ def sync_games(games, root):  # установленные игры: слива�
     for r in sql("select * from items where kind='game'"):
         i = ginfo(r)
         if r['id'] in touched or i.get('inst', {}).get('root') != root and r['src'] != root: continue
-        if i.get('meta'): i.pop('inst', None); sql("update items set path='', size=0, info=? where id=?", (json.dumps(i, ensure_ascii=False), r['id']))   # карточка остаётся, игра больше не скачана
-        else: sql('delete from items where id=?', (r['id'],))
+        if i.get('meta') or i.get('note') or game_tags.has_tags(db, lock, r['id']): i.pop('inst', None); sql("update items set path='', size=0, info=? where id=?", (json.dumps(i, ensure_ascii=False), r['id']))   # карточка остаётся, игра больше не скачана
+        else: sql('delete from items where id=? and not exists (select 1 from game_tags where item_id=items.id)', (r['id'],))
 def manga_extra(r):
     if r['kind'] == 'game':
         g = game_view(r); return ' · '.join(x for x in [g['version'] or (g['latest'] if not g['downloaded'] else ''), ('старых ' + str(g['old'])) if g['old'] else ''] if x)
@@ -951,7 +949,7 @@ class H(BaseHTTPRequestHandler):
         except Exception as e: self.js({'error': str(e)}, 500)
     def get(self):
         u = urlparse(self.path); p = unquote(u.path); qs = {k: v[0] for k, v in parse_qs(u.query).items()}
-        if p == '/' or p in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/accessibility.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
+        if p == '/' or p in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/game-library.js', '/ui/game-tags.js', '/ui/accessibility.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
         if p == '/api/jobs':
             now = time.time(); keys = ('id', 'url', 'kind', 'status', 'pct', 'title', 'eta', 'daily', 'start_at')
             return self.js([dict({k: j.get(k) for k in keys}, speed=(j.get('speed') or 0) if now - j.get('_ts', now) < 8 else 0) for j in jobs.values()])
@@ -967,11 +965,11 @@ class H(BaseHTTPRequestHandler):
             r = dict(prev[qs['t']]); r['pages'] = r.get('pages', [])[int(qs.get('from', 0)):]; r['free'] = shutil.disk_usage(root('Video')).free; return self.js(r)
         if p == '/api/library':
             q = '%' + qs.get('q', '') + '%'; k = qs.get('kind', '')
-            out = []
+            out = []; tag_map = game_tags.all_tags(db, lock)
             for r in sql("select * from items where (title like ? or author like ? or topic like ?) and (kind=? or ?='') order by id desc", (q, q, q, k, k)):
                 d = dict(r); d['missing'] = not Path(r['path']).exists(); d['cover'] = f"/t/{r['id']}" if r['thumb'] else ''; d['extra'] = manga_extra(r)
                 d['open'] = f"/s/{r['id']}/" + os.path.relpath(r['path'], r['root']).replace(os.sep, '/') if r['kind'] == 'site' else f"/m/{r['id']}" if r['kind'] == 'manga' else f"/f/{r['id']}"
-                if r['kind'] == 'game': d['g'] = game_view(r); d['missing'] = False
+                if r['kind'] == 'game': d['g'] = game_view(r); d['g']['tags'] = tag_map.get(r['id'], []); d['missing'] = False
                 d['state'] = 'link' if r['kind'] == 'link' else ('missing' if d['missing'] else 'ok'); d['tracked'] = r['tracked'] or 0
                 if r['kind'] == 'link': d['open'] = r['src'] or r['url']; d['missing'] = False
                 out.append(d)
@@ -999,6 +997,7 @@ class H(BaseHTTPRequestHandler):
             o = self.headers.get('Origin')
             if self.headers.get('X-MH') != '1' or (o and urlparse(o).hostname not in ('127.0.0.1', 'localhost')): return self.send_error(403)
         try: self.post()
+        except json.JSONDecodeError: self.js({'error': 'Некорректный JSON'}, 400)
         except Exception as e: self.js({'error': str(e)}, 500)
     def post(self):
         if self.path == '/ingest': return self.ingest()
@@ -1040,6 +1039,7 @@ class H(BaseHTTPRequestHandler):
         if p == '/api/game/check':
             game_ids = [d['id']] if d.get('id') else None
             return self.js({'job': new_job('games:check', 'gamecheck', ids=game_ids, title='Проверка игр')})
+        if p == '/api/game/tags': return self.js(*save_tags_request(d, lambda item_id, tags: game_tags.replace_tags(db, lock, item_id, tags)))
         if p == '/api/game/set':
             r = sql("select * from items where id=? and kind='game'", (d.get('id'),))
             if r:
