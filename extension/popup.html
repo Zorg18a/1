@@ -4,5 +4,7 @@
 <label class="chk"><input type="checkbox" id="close" checked> Закрыть вкладки после успешной обработки</label>
 <button type="submit" id="go" class="go">Показать список в приложении</button></form>
 <p id="msg" class="msg" role="status"></p>
-<p class="note">Расширение видит только адрес и название вкладок, которые вы отправляете. Пароли, cookies, история и закладки не читаются. Ничего не скачивается, пока вы не подтвердите список в приложении. Для манги расширение на время загрузки открывает небольшое окно сайта.</p>
-<script src="popup.js"></script></body></html>
+<button type="button" id="quick-game" class="go" aria-describedby="quick-game-message" disabled>Добавить текущую игру</button>
+<p id="quick-game-message" class="msg" role="status"></p>
+<p class="note">Для списка вкладок передаются адреса и названия; карточка игры дополнительно считывает HTML темы через браузер. Пароли, cookies, история и закладки напрямую не читаются. Список вкладок требует подтверждения в приложении; кнопка игры сразу создаёт задание и не закрывает вкладку. Для манги расширение на время загрузки открывает небольшое окно сайта.</p>
+<script src="popup.js"></script><script type="module" src="quick-game.js"></script></body></html>

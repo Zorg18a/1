@@ -4,13 +4,12 @@ from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse, urljoin, unquote, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
-
 from storage.database import open_database, execute
 from core import gamelib
 from core.classify import classify
+from core.game_sources import quick_game_request
 from core.job_queue import JobQueue
 from legacy import gamesweep
-
 mimetypes.add_type('image/avif', '.avif'); mimetypes.add_type('text/javascript', '.js')
 BASE = Path(os.environ.get('MEDIAHUB_DATA_DIR') or (Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent.parent))
 BASE.mkdir(parents=True, exist_ok=True)
@@ -917,6 +916,7 @@ class H(BaseHTTPRequestHandler):
             if o in EXT: return self.js({'status': 'ok', 'token': EXT[o]})
             PAIR[o] = {'name': str(d.get('name') or 'Браузер')[:40], 't': time.time()}; return self.js({'status': 'pending'})
         if not self.ext_ok(o): return self.js({'error': 'auth'}, 401)
+        if self.path == '/ext/game/add': return self.js(*quick_game_request(d, new_job))
         if self.path == '/ext/result':  # расширение вернуло результат задания (список глав, адреса страниц)
             with XTL: t = XT.get(d.get('id'))
             if t: t['res'] = {'ok': bool(d.get('ok')), 'data': d.get('data'), 'error': d.get('error')}; t['ev'].set()

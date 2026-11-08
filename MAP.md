@@ -11,6 +11,7 @@
 - `app.py` — Точка входа приложения.
 - `core/__init__.py` — Пакет бизнес-логики.
 - `core/classify.py` — классификация ссылок и нормализация ключей без сетевых запросов.
+- `core/game_sources.py` — валидация игровых тем и подготовка задания для расширения.
 - `core/job_queue.py` — очередь заданий, таймеры и потоки обработчиков.
 - `core/gamelib.py` — Разбор карточек игр, URL и сравнение версий.
 - `extension-firefox/background.js` — Фоновая логика расширения и обмен с MediaHub.
@@ -22,6 +23,7 @@
 - `extension-firefox/popup.css` — Стили окна расширения.
 - `extension-firefox/popup.html` — Разметка окна расширения.
 - `extension-firefox/popup.js` — Управление окном расширения.
+- `extension-firefox/quick-game.js` — ES-модуль кнопки добавления игры для Firefox.
 - `extension/background.js` — Фоновая логика расширения и обмен с MediaHub.
 - `extension/icon128.png` — Иконка расширения указанного размера.
 - `extension/icon16.png` — Иконка расширения указанного размера.
@@ -32,6 +34,7 @@
 - `extension/popup.css` — Стили окна расширения.
 - `extension/popup.html` — Разметка окна расширения.
 - `extension/popup.js` — Управление окном расширения.
+- `extension/quick-game.js` — ES-модуль кнопки добавления игры для Chromium.
 - `legacy/README-original.md` — Историческое описание архива; пути могут устареть.
 - `legacy/__init__.py` — Пакет совместимости исходного приложения.
 - `legacy/app.py` — Исходный сервер MediaHub, очередь и большая часть логики; техдолг.
@@ -41,6 +44,8 @@
 - `storage/__init__.py` — Пакет хранения данных.
 - `storage/database.py` — Подключение SQLite, начальная миграция и транзакции.
 - `tests/test_classify.py` — проверки классификации ссылок и канонических ключей.
+- `tests/test_quick_game.py` — валидация, авторизация и тест карточки игры через HTTP.
+- `tests/test_quick_game.mjs` — тесты обеих копий кнопки и обработки ошибок.
 - `tests/test_core.py` — Тесты парсера игр и группировки версий.
 - `tests/test_extension_errors.py` — ошибки подключения и подтверждений расширения.
 - `tests/test_job_queue.py` — тесты очереди, таймеров, отмены и потоков.
