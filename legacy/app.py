@@ -1125,4 +1125,4 @@ def main():
     scan(); threading.Thread(target=backfill, daemon=True).start()
     spawn_workers(); threading.Thread(target=settle_loop, daemon=True).start(); threading.Thread(target=game_auto_loop, daemon=True).start()
     if cfg.get('games_root'): threading.Thread(target=games_scan, args=(cfg['games_root'],), daemon=True).start()
-    print('MediaHub: http://127.0.0.1:8765'); webbrowser.open('http://127.0.0.1:8765'); ThreadingHTTPServer(('127.0.0.1', 8765), H).serve_forever()
+    print('MediaHub: http://127.0.0.1:8765'); os.environ.get('MEDIAHUB_NO_BROWSER') or webbrowser.open('http://127.0.0.1:8765'); ThreadingHTTPServer(('127.0.0.1', 8765), H).serve_forever()

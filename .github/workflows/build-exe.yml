@@ -25,6 +25,8 @@ jobs:
           --add-data "extension;extension"
           --add-data "extension-firefox;extension-firefox"
           --collect-all yt_dlp --collect-all playwright app.py
+      - name: Smoke-test packaged application
+        run: python scripts/smoke_exe.py dist/MediaHub/MediaHub.exe
       - name: Upload Windows folder
         uses: actions/upload-artifact@v4
         with:
