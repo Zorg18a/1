@@ -1,11 +1,11 @@
 # MediaHub v2: локальный загрузчик + библиотека. Движок — yt-dlp[default], ffmpeg/deno берутся из папки ffmpeg рядом.
-import sys, base64, hmac, secrets, http.client, json, os, re, subprocess, shutil, sqlite3, threading, time, webbrowser, urllib.request, itertools, http.cookiejar, mimetypes
+import sys, base64, hmac, secrets, http.client, json, logging, os, re, subprocess, shutil, sqlite3, threading, time, webbrowser, urllib.request, itertools, http.cookiejar, mimetypes
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse, urljoin, unquote, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from storage.database import open_database, execute
-from storage import game_tags
+from storage import cover_cache, cover_download, game_tags
 from core import gamelib
 from core.classify import classify
 from core.game_sources import quick_game_request
@@ -299,12 +299,7 @@ def discover(tok, d):  # быстрый обход для визуального
 
 # ---------- манга Senkuro: приём глав от закладки в браузере, загрузка страниц, читалка ----------
 MH = ('shiro.senkuro.net', 'mirai.senkuro.net'); mlock = threading.Lock()
-def sniff(b):
-    if b[:3] == b'\xff\xd8\xff': return 'jpg'
-    if b[:8] == b'\x89PNG\r\n\x1a\n': return 'png'
-    if b[:4] == b'RIFF' and b[8:12] == b'WEBP': return 'webp'
-    if b[:6] in (b'GIF87a', b'GIF89a'): return 'gif'
-    if b[4:12] in (b'ftypavif', b'ftypavis'): return 'avif'
+def sniff(b): return cover_cache.image_extension(b)
 def orig(u):  # ссылка shiro содержит адрес оригинала на mirai
     try:
         t = urlparse(u).path.rsplit('/', 1)[-1].split('.')[0]; o = base64.urlsafe_b64decode(t + '=' * (-len(t) % 4)).decode()
@@ -515,7 +510,7 @@ def games_scan(root):
     if root and os.path.isdir(root): games_server().store.start_scan(root, 'auto')
 def plural(n, f): return f'{n} ' + (f[0] if n % 10 == 1 and n % 100 != 11 else f[1] if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else f[2])
 def sync_games(games, root):  # установленные игры: сливаем с карточками из браузера (по названию), остальные добавляем
-    root = os.path.abspath(root); buckets = {}
+    root = os.path.abspath(root); buckets = {}; cache = os.path.normcase(os.path.abspath(os.path.join(cfg['folder'], 'covers'))); games = [g for g in games if os.path.normcase(os.path.abspath(g['path'])) != cache]
     for g in games:
         pn = gamesweep.parse_name(g['name']); buckets.setdefault(pn['key'] or g['name'].casefold(), []).append((g, pn))
     groups = {gr['key']: gr for gr in gamesweep.build_groups(games)}; touched = set()
@@ -525,15 +520,18 @@ def sync_games(games, root):  # установленные игры: слива�
         pn = next(p for g, p in ms if g is newest); title = (gr['title'] if gr else ms[0][1]['base']) or ms[0][0]['name']; old = sum(1 for r in (gr['members'] if gr else []) if r['status'] in ('старая', 'дубль'))
         inst = {'version': (keep or {}).get('version') or (pn.get('text') or ''), 'versions': len(ms), 'old': old, 'root': root, 'path': newest['path']}
         row = find_game(key, title); info = ginfo(row) if row else {}; info['inst'] = inst; info.setdefault('added', time.time()); info.setdefault('auto', True)
-        mv = info.get('meta', {}).get('version', ''); info['update'] = bool(mv and inst['version'] and gamelib.newer(mv, inst['version']))
+        mv = info.get('meta', {}).get('version', ''); info['update'] = bool(mv and inst['version'] and gamelib.newer(mv, inst['version'])); cover = ''
+        if not (row and row['thumb'] and Path(row['thumb']).is_file()):
+            try: cover = cover_cache.cache_local_cover(newest['path'], cfg['folder'])
+            except (OSError, ValueError) as e: logging.warning('Не удалось сохранить обложку %s: %s', title, e)
         if row:
-            sql('update items set path=?, size=?, info=? where id=?', (newest['path'], int(newest.get('size') or 0), json.dumps(info, ensure_ascii=False), row['id'])); touched.add(row['id'])
+            sql("update items set path=?, size=?, info=?, thumb=case when coalesce(thumb,'')=? and ?!='' then ? else thumb end where id=?", (newest['path'], int(newest.get('size') or 0), json.dumps(info, ensure_ascii=False), row['thumb'] or '', cover, cover, row['id'])); touched.add(row['id'])
         else:
-            sql("insert into items(title,author,topic,kind,path,root,url,size,thumb,src,info) values(?,?,?,?,?,?,?,?,?,?,?)", (title, Path(root).name or 'Игры', 'Игры', 'game', newest['path'], '', 'game:' + key, int(newest.get('size') or 0), '', root, json.dumps(info, ensure_ascii=False)))
+            sql("insert into items(title,author,topic,kind,path,root,url,size,thumb,src,info) values(?,?,?,?,?,?,?,?,?,?,?)", (title, Path(root).name or 'Игры', 'Игры', 'game', newest['path'], '', 'game:' + key, int(newest.get('size') or 0), cover, root, json.dumps(info, ensure_ascii=False)))
             touched.add(sql('select id from items where url=?', ('game:' + key,))[0]['id'])
     for r in sql("select * from items where kind='game'"):
         i = ginfo(r)
-        if r['id'] in touched or i.get('inst', {}).get('root') != root and r['src'] != root: continue
+        if r['id'] in touched or (r['path'] and os.path.normcase(os.path.abspath(r['path'])) == cache) or i.get('inst', {}).get('root') != root and r['src'] != root: continue
         if i.get('meta') or i.get('note') or game_tags.has_tags(db, lock, r['id']): i.pop('inst', None); sql("update items set path='', size=0, info=? where id=?", (json.dumps(i, ensure_ascii=False), r['id']))   # карточка остаётся, игра больше не скачана
         else: sql('delete from items where id=? and not exists (select 1 from game_tags where item_id=items.id)', (r['id'],))
 def manga_extra(r):
@@ -798,21 +796,18 @@ def game_view(r):  # всё, что нужно карточке в библио�
             'engine': m.get('engine', ''), 'os': m.get('os', ''), 'status': m.get('status', ''), 'release': m.get('release', ''), 'desc': m.get('desc', ''), 'links': m.get('links', []), 'support': m.get('support', []), 'thread': m.get('thread') or '',
             'language': m.get('language', ''), 'auto': i.get('auto', True), 'note': i.get('note', ''), 'checked': i.get('checked', 0), 'added': i.get('added', 0), 'versions': inst.get('versions', 1 if dl else 0), 'old': inst.get('old', 0), 'path': r['path'] if dl else ''}
 def fetch_cover(url, referer, key):
-    guard(url)
-    with opener().open(urllib.request.Request(url, headers={**UA, 'Referer': referer}), timeout=30) as r: data = r.read(8_000_000)
-    ext = sniff(data)
-    if not ext: return ''
-    d = root('Games') / 'covers'; d.mkdir(parents=True, exist_ok=True); p = d / (safe(key)[:80] + '.' + ext); p.write_bytes(data); return str(p)
+    data = cover_download.download_cover(url, referer, guard, opener(), cover_cache.MAX_COVER_BYTES)
+    return cover_cache.cache_bytes(data, cfg['folder'])
 def apply_meta(meta, thread):  # создаёт или обновляет карточку игры; установленные файлы не трогаем
     name = meta['name'] or thread; key = name_key(name); row = find_game(key, name); info = ginfo(row) if row else {}
     info['meta'] = dict(meta, thread=thread); info['checked'] = time.time(); info.setdefault('added', time.time()); info.setdefault('auto', True)
     inst = info.get('inst', {}).get('version', ''); info['update'] = bool(inst and gamelib.newer(meta.get('version', ''), inst))
     cover = ''
-    if meta.get('cover') and not (row and row['thumb'] and Path(row['thumb']).exists()):
+    if meta.get('cover') and not (row and row['thumb'] and Path(row['thumb']).is_file()):
         try: cover = fetch_cover(meta['cover'], thread, key)
-        except Exception: cover = ''
+        except Exception as e: logging.warning('Не удалось загрузить обложку %s: %s', name, e)
     if row:
-        sql("update items set title=?, author=?, src=?, info=?, thumb=case when ?='' then thumb else ? end where id=?", (name, meta.get('developer') or row['author'], thread, json.dumps(info, ensure_ascii=False), cover, cover, row['id']))
+        sql("update items set title=?, author=?, src=?, info=?, thumb=case when coalesce(thumb,'')=? and ?!='' then ? else thumb end where id=?", (name, meta.get('developer') or row['author'], thread, json.dumps(info, ensure_ascii=False), row['thumb'] or '', cover, cover, row['id']))
         return row['id']
     sql("insert into items(title,author,topic,kind,path,root,url,size,thumb,src,info) values(?,?,?,?,?,?,?,?,?,?,?)", (name, meta.get('developer') or 'Игры', 'Игры', 'game', '', '', 'game:' + key, 0, cover, thread, json.dumps(info, ensure_ascii=False)))
     return sql("select id from items where url=?", ('game:' + key,))[0]['id']
@@ -967,7 +962,7 @@ class H(BaseHTTPRequestHandler):
             q = '%' + qs.get('q', '') + '%'; k = qs.get('kind', '')
             out = []; tag_map = game_tags.all_tags(db, lock)
             for r in sql("select * from items where (title like ? or author like ? or topic like ?) and (kind=? or ?='') order by id desc", (q, q, q, k, k)):
-                d = dict(r); d['missing'] = not Path(r['path']).exists(); d['cover'] = f"/t/{r['id']}" if r['thumb'] else ''; d['extra'] = manga_extra(r)
+                d = dict(r); d['missing'] = not Path(r['path']).exists(); d['cover'] = f"/t/{r['id']}" if r['thumb'] and (r['kind'] != 'game' or Path(r['thumb']).is_file()) else ''; d['extra'] = manga_extra(r)
                 d['open'] = f"/s/{r['id']}/" + os.path.relpath(r['path'], r['root']).replace(os.sep, '/') if r['kind'] == 'site' else f"/m/{r['id']}" if r['kind'] == 'manga' else f"/f/{r['id']}"
                 if r['kind'] == 'game': d['g'] = game_view(r); d['g']['tags'] = tag_map.get(r['id'], []); d['missing'] = False
                 d['state'] = 'link' if r['kind'] == 'link' else ('missing' if d['missing'] else 'ok'); d['tracked'] = r['tracked'] or 0

@@ -13,6 +13,7 @@ settings.json
 ext.json
 archive_*.txt
 browser_profile/
+covers/
 ffmpeg/
 *.log
 *.zip
