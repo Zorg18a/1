@@ -1,7 +1,6 @@
 # MediaHub v2: локальный загрузчик + библиотека. Движок — yt-dlp[default], ffmpeg/deno берутся из папки ffmpeg рядом.
-import sys, base64, hmac, secrets, http.client, json, os, re, subprocess, shutil, sqlite3, threading, queue, time, webbrowser, urllib.request, itertools, http.cookiejar, mimetypes
+import sys, base64, hmac, secrets, http.client, json, os, re, subprocess, shutil, sqlite3, threading, time, webbrowser, urllib.request, itertools, http.cookiejar, mimetypes
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from urllib.parse import urlparse, urljoin, unquote, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
@@ -9,6 +8,7 @@ from pathlib import Path
 from storage.database import open_database, execute
 from core import gamelib
 from core.classify import classify
+from core.job_queue import JobQueue
 from legacy import gamesweep
 
 mimetypes.add_type('image/avif', '.avif')
@@ -21,7 +21,7 @@ cfg = {'folder': str(Path.home() / 'Downloads' / 'MediaHub'), 'workers': 3, 'ski
        'res': 'best', 'afmt': 'mp3', 'subs_on': False, 'subs_langs': 'ru,en', 'thumbs': True, 'depth': 1, 'maxp': 100, 'videos': True}
 if CFG.exists(): cfg.update(json.loads(CFG.read_text('utf-8')))
 db, lock = open_database(BASE / 'library.db')
-Q, jobs, ids, prev, _op = queue.Queue(), {}, itertools.count(1), {}, [None]
+jobs, ids, prev, _op = {}, itertools.count(1), {}, [None]
 VID = {'.mp4', '.mkv', '.webm', '.mov', '.avi', '.flv', '.m4v'}; AUD = {'.mp3', '.m4a', '.opus', '.flac', '.wav', '.ogg', '.aac'}
 
 def sql(s, a=()):
@@ -585,28 +585,13 @@ def preview(tok, d):
     p['finished'] = True
 
 # ---------- очередь / расписание ----------
-def enqueue(j):
-    jobs[j['id']] = j
-    if j['start_at'] > time.time():
-        j['status'] = 'запланировано ' + datetime.fromtimestamp(j['start_at']).strftime('%d.%m %H:%M')
-        t = threading.Timer(j['start_at'] - time.time(), fire, (j,)); t.daemon = True; t.start()
-    else: Q.put(j)
-def fire(j):
-    if j['cancel']: return
-    j['status'] = 'в очереди'; Q.put(j)
-    if j['daily']: enqueue(dict(j, id=next(ids), start_at=j['start_at'] + 86400, cancel=False, pct=0, speed=0))
-_wk = [0]
+def run_job(j):
+    return ({'site': crawl, 'manga': manga, 'mangaurl': manga_site, 'mangabrowser': manga_browser, 'gamecard': game_card, 'gamecheck': game_check}.get(j['kind'], media))(j)
+scheduler = JobQueue(jobs, ids, run_job)
+enqueue, fire = scheduler.enqueue, scheduler.fire
 def spawn_workers():
     cfg['workers'] = max(1, min(12, int(cfg.get('workers') or 3)))
-    while _wk[0] < cfg['workers']: threading.Thread(target=worker, daemon=True).start(); _wk[0] += 1
-def worker():
-    while True:
-        j = Q.get()
-        if j['cancel']: j['status'] = 'отменено'; continue
-        j['status'] = 'качается'
-        try: ({'site': crawl, 'manga': manga, 'mangaurl': manga_site, 'mangabrowser': manga_browser, 'gamecard': game_card, 'gamecheck': game_check}.get(j['kind'], media))(j); j['status'] = 'отменено' if j['cancel'] else j.pop('final', 'готово'); j['pct'] = 100
-        except Exception as e: j['status'] = 'отменено' if j['cancel'] else 'ошибка: ' + str(e)[:150]
-        j['speed'] = 0
+    scheduler.spawn_workers(cfg['workers'])
 
 # ---------- расширение браузера: входящие вкладки ----------
 for c_ in ('src', 'tracked int default 0', 'checked', 'info'):
