@@ -1,4 +1,5 @@
 """Verify an old database can be opened by the full application without data loss."""
+from contextlib import closing
 import os
 from pathlib import Path
 import sqlite3
@@ -12,14 +13,14 @@ class MigrationTests(unittest.TestCase):
     def test_old_database_copy_through_http(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / 'old.db'
-            with sqlite3.connect(source) as db:
+            with closing(sqlite3.connect(source)) as db, db:
                 db.execute('create table items(id integer primary key, title, author, topic, kind, '
                            'path, root, url unique, size int, added default current_timestamp)')
                 db.execute('insert into items(title,kind,path,url) values(?,?,?,?)',
                            ('Example', 'video', 'old-file.mp4', 'https://example.org/video'))
             data = Path(directory) / 'data'
             data.mkdir()
-            with sqlite3.connect(source) as original, sqlite3.connect(data / 'library.db') as copy:
+            with closing(sqlite3.connect(source)) as original, closing(sqlite3.connect(data / 'library.db')) as copy:
                 original.backup(copy)
             code = '''
 import http.client, json, threading
@@ -45,10 +46,10 @@ finally:
 '''
             env = dict(os.environ, MEDIAHUB_DATA_DIR=str(data))
             subprocess.run([sys.executable, '-c', code], env=env, check=True, timeout=30)
-            with sqlite3.connect(source) as original:
+            with closing(sqlite3.connect(source)) as original:
                 self.assertNotIn('thumb', [row[1] for row in original.execute('pragma table_info(items)')])
                 self.assertEqual(original.execute('select count(*) from items').fetchone()[0], 1)
-            with sqlite3.connect(data / 'library.db') as migrated:
+            with closing(sqlite3.connect(data / 'library.db')) as migrated:
                 columns = [row[1] for row in migrated.execute('pragma table_info(items)')]
                 self.assertTrue({'thumb', 'src', 'tracked', 'info'}.issubset(columns))
                 self.assertEqual(migrated.execute('select count(*) from items').fetchone()[0], 1)

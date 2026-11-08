@@ -46,3 +46,4 @@
 - `ui/reader.html` — Читалка манги.
 - `scripts/smoke_exe.py` — проверка запущенной сборки и комплектности ресурсов на Windows.
 - `tests/test_migration.py` — интеграционный тест миграции копии старой базы и HTTP.
+- `scripts/run_tests.py` — запускает тесты и выводит ошибки в аннотации GitHub Actions.
