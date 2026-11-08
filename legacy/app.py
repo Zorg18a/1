@@ -11,7 +11,7 @@ from core.classify import classify
 from core.job_queue import JobQueue
 from legacy import gamesweep
 
-mimetypes.add_type('image/avif', '.avif')
+mimetypes.add_type('image/avif', '.avif'); mimetypes.add_type('text/javascript', '.js')
 BASE = Path(os.environ.get('MEDIAHUB_DATA_DIR') or (Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent.parent))
 BASE.mkdir(parents=True, exist_ok=True)
 ASSETS = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent.parent))
@@ -951,7 +951,7 @@ class H(BaseHTTPRequestHandler):
         except Exception as e: self.js({'error': str(e)}, 500)
     def get(self):
         u = urlparse(self.path); p = unquote(u.path); qs = {k: v[0] for k, v in parse_qs(u.query).items()}
-        if p == '/': return self.file(ASSETS / 'ui' / 'index.html')
+        if p == '/' or p in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/accessibility.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
         if p == '/api/jobs':
             now = time.time(); keys = ('id', 'url', 'kind', 'status', 'pct', 'title', 'eta', 'daily', 'start_at')
             return self.js([dict({k: j.get(k) for k in keys}, speed=(j.get('speed') or 0) if now - j.get('_ts', now) < 8 else 0) for j in jobs.values()])

@@ -1,0 +1,32 @@
+html[data-theme="light"] {
+  --ink:#f7f8fc; --panel:#fff; --raise:#e8ebf2; --line:rgba(35,45,65,.18);
+  --line2:rgba(35,45,65,.36); --text:#172033; --mute:#4c576e;
+  --amber:#8b5400; --amber-ink:#fff; --danger:#a20c22; --ok:#006936;
+  color-scheme:light;
+}
+html[data-theme="dark"][data-contrast="high"] {
+  --ink:#000; --panel:#000; --raise:#202020; --line:#fff; --line2:#fff;
+  --text:#fff; --mute:#fff; --amber:#ffdb66; --amber-ink:#000; --danger:#ffb3b3; --ok:#aaffcf;
+}
+html[data-theme="light"][data-contrast="high"] {
+  --ink:#fff; --panel:#fff; --raise:#eee; --line:#000; --line2:#000;
+  --text:#000; --mute:#111; --amber:#623500; --amber-ink:#fff; --danger:#930019; --ok:#004f27;
+}
+html[data-size="large"] body { zoom:1.2 }
+html[data-size="larger"] body { zoom:1.4 }
+@supports not (zoom: 1) {
+  html[data-size="large"] body { font-size:18px }
+  html[data-size="larger"] body { font-size:21px }
+}
+html[data-theme="light"] .tools { background:var(--ink) }
+html[data-theme="light"] .transport, html[data-theme="light"] .pairbar,
+html[data-theme="light"] .bbar, html[data-theme="light"] .toast { background:var(--panel) }
+html[data-contrast="high"] ::placeholder { color:var(--mute); opacity:1 }
+:focus-visible { outline:3px solid var(--amber); outline-offset:3px }
+.notify-launch, .shortcuts-launch { width:100%; justify-content:flex-start }
+#toastBox { position:fixed; right:16px; bottom:84px; z-index:35; display:grid; gap:8px; max-width:min(420px,90vw) }
+#toastBox .toast { position:static; transform:none; background:var(--panel); overflow-wrap:anywhere }
+.notify-list { max-height:50vh; overflow:auto; padding-left:24px }
+.notify-list li { margin-bottom:12px; overflow-wrap:anywhere }
+.shortcut-list kbd { border:1px solid var(--line2); border-radius:4px; padding:2px 5px }
+@media(max-width:860px) { .notify-launch, .shortcuts-launch { justify-content:center; padding:9px 4px } }

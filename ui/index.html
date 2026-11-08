@@ -126,7 +126,7 @@ code{padding:1px 6px;border-radius:5px;background:var(--raise);font:12.5px ui-mo
 @media(max-width:860px){.ir{grid-template-columns:22px 1fr}.ir select{grid-column:2}.ir.done{grid-template-columns:1fr}.pairbar{left:80px;right:12px;transform:none;flex-wrap:wrap}}
 @media(max-width:860px){.app{grid-template-columns:64px 1fr}.side{padding:14px 8px}.lbl,.brand b,.disk{display:none}.brand{justify-content:center;padding-bottom:12px}.addbtn{padding:10px}nav a{justify-content:center;padding:10px}.badge{position:absolute;margin:-18px -4px 0 0;transform:translateX(14px)}main{padding:18px 16px 100px}.tools{margin:-18px -16px 6px;padding:18px 16px 10px}.transport{left:80px;right:12px}.sr{grid-template-columns:1fr}.sr .ctl{justify-content:flex-start}.seg{grid-template-columns:repeat(2,1fr)}}
 @media(prefers-reduced-motion:reduce){*,::before,::after{animation:none!important;transition:none!important}}
-</style></head><body>
+</style><link rel="stylesheet" href="/ui/accessibility.css"></head><body>
 <div class="app">
 <aside class="side">
  <div class="brand"><i><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/></svg></i><b>MediaHub</b></div>
@@ -249,7 +249,7 @@ function route(){cur=V.includes(location.hash.slice(1))?location.hash.slice(1):'
  if(cur=='library')lib();if(cur=='inbox')loadInbox();if(cur=='settings')loadSet();if(cur=='games'){closePanel();gtab(!$('gtab-ver').classList.contains('hide')?'ver':'lib')}if(cur=='downloads')drawJobs();drawBar()}
 addEventListener('hashchange',route);
 /* --- toast --- */
-function toast(t,label,fn){const e=document.createElement('div');e.className='toast';e.setAttribute('role','status');e.innerHTML=`<span>${esc(t)}</span>`;if(label){const b=document.createElement('button');b.textContent=label;b.onclick=()=>{fn();e.remove()};e.append(b)}$('toastBox').replaceChildren(e);setTimeout(()=>e.remove(),4200)}
+function toast(t,label,fn){window.dispatchEvent(new CustomEvent('mediahub:notify',{detail:{message:String(t),label,action:fn}}))}
 /* --- библиотека --- */
 let ALL=[],FK='',L=[];
 async function lib(){ALL=await api('/api/library?q='+encodeURIComponent($('q').value));draw()}
@@ -307,7 +307,7 @@ $('find').onclick=async()=>{if(!/https?:\/\//.test($('urls').value)){toast('Сн
   p.pages.forEach(x=>{const i=P.push(x)-1;$('plist').insertAdjacentHTML('beforeend',`<label style="padding-left:${10+x.depth*16}px"><input type="checkbox" id="pg${i}" ${i<+$('maxp').value?'checked':''}> ${esc(x.title)} <span>${esc(x.url)}</span></label>`);$('pg'+i).onchange=cnt});cnt();if(p.finished)clearInterval(iv)},800)};
 /* --- загрузки --- */
 let J=[],lastAct=0;const isA=j=>/^(качается|в очереди|запл)/.test(j.status);
-async function poll(){J=await api('/api/jobs');const act=J.filter(isA),sp=J.reduce((a,x)=>a+(x.speed||0),0);
+async function poll(){J=await api('/api/jobs');window.dispatchEvent(new CustomEvent('mediahub:jobs',{detail:J}));const act=J.filter(isA),sp=J.reduce((a,x)=>a+(x.speed||0),0);
  $('nb').textContent=act.length;$('nb').classList.toggle('hide',!act.length);
  if(lastAct>act.length){if(cur=='library')lib();disk()}lastAct=act.length;
  if(cur=='downloads')drawJobs();drawBar();pollExt()}
@@ -435,4 +435,4 @@ $('inb').addEventListener('click',async e=>{const x=e.target.closest('[data-do]'
  if(d=='dismiss'){await api('/api/inbox/dismiss',{batch:x.dataset.b});LASTIB='';loadInbox()}
  if(d=='reopen'){window.open(x.dataset.url,'_blank');await api('/api/inbox/reopened',{id:+x.dataset.id});LASTIB='';loadInbox();toast('Вкладка возвращена')}});
 route();poll();setInterval(poll,1000);disk();setInterval(disk,30000);
-</script></body></html>
+</script><script type="module" src="/ui/app.js"></script></body></html>
