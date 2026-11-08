@@ -1,0 +1,43 @@
+{
+  "manifest_version": 2,
+  "name": "MediaHub: добавить вкладки",
+  "version": "1.0.0",
+  "description": "Отправляет выбранные вкладки в приложение MediaHub и закрывает их после успешной загрузки. Не читает пароли, cookies и историю.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "mediahub-tabs@mediahub.local",
+      "strict_min_version": "109.0"
+    }
+  },
+  "browser_action": {
+    "default_title": "Добавить вкладки в MediaHub",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "32": "icon32.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "background": {
+    "scripts": [
+      "background.js"
+    ],
+    "persistent": true
+  },
+  "permissions": [
+    "tabs",
+    "notifications",
+    "storage",
+    "alarms",
+    "http://127.0.0.1:8765/*",
+    "https://senkuro.me/*",
+    "https://f95zone.to/*"
+  ]
+}

@@ -1,0 +1,11 @@
+:root{color-scheme:dark}
+body{width:340px;margin:0;padding:16px;background:#12151d;color:#e9ebf3;font:13.5px/1.45 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}
+h1{margin:0 0 12px;font-size:15px;font-weight:650;letter-spacing:-.01em}
+#opts{display:grid;gap:4px;margin-bottom:12px}
+.opt{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid rgba(170,185,230,.16);border-radius:8px;cursor:pointer}
+.opt:hover{border-color:rgba(170,185,230,.34)}.opt:has(input:checked){background:#1a1e2a;border-color:#f2b84b}.opt input{accent-color:#f2b84b}.opt b{margin-left:auto;font-variant-numeric:tabular-nums;color:#8f96ab;font-weight:500}
+.opt.off{opacity:.45;cursor:default}
+.chk{display:flex;gap:8px;align-items:center;margin:0 0 12px;color:#c5cadb}.chk input{accent-color:#f2b84b}
+.go{width:100%;padding:10px 12px;border:0;border-radius:10px;background:#f2b84b;color:#1c1406;font:inherit;font-weight:650;cursor:pointer}.go:disabled{opacity:.5;cursor:default}.go:focus-visible,.opt:focus-within{outline:2px solid #f2b84b;outline-offset:2px}
+.msg{min-height:0;margin:10px 0 0;color:#f2b84b}.msg:empty{display:none}
+.note{margin:12px 0 0;color:#8f96ab;font-size:12px}
