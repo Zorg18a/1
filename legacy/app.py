@@ -6,22 +6,25 @@ from urllib.parse import urlparse, urljoin, unquote, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
-mimetypes.add_type('image/avif', '.avif'); BASE = Path(__file__).parent; sys.path.insert(0, str(BASE)); FF = BASE / 'ffmpeg'; CFG = BASE / 'settings.json'
+from storage.database import open_database, execute
+from core import gamelib
+from legacy import gamesweep
+
+mimetypes.add_type('image/avif', '.avif')
+BASE = Path(os.environ.get('MEDIAHUB_DATA_DIR') or (Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent.parent))
+BASE.mkdir(parents=True, exist_ok=True)
+ASSETS = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent.parent))
+FF = BASE / 'ffmpeg'; CFG = BASE / 'settings.json'
 if FF.exists(): os.environ['PATH'] = str(FF) + os.pathsep + os.environ['PATH']  # ffmpeg, ffprobe, deno
 cfg = {'folder': str(Path.home() / 'Downloads' / 'MediaHub'), 'workers': 3, 'skip': True, 'cookie_file': '', 'cookie_browser': '', 'games_root': '', 'show_browser': False, 'browser': 'msedge', 'limit_mb': 0, 'manga_via': 'auto', 'games_check_hours': 0,
        'res': 'best', 'afmt': 'mp3', 'subs_on': False, 'subs_langs': 'ru,en', 'thumbs': True, 'depth': 1, 'maxp': 100, 'videos': True}
 if CFG.exists(): cfg.update(json.loads(CFG.read_text('utf-8')))
-db = sqlite3.connect(BASE / 'library.db', check_same_thread=False); db.row_factory = sqlite3.Row; lock = threading.Lock()
-db.execute('create table if not exists items(id integer primary key, title, author, topic, kind, path, root, url unique, size int, added default current_timestamp, thumb)')
-try: db.execute('alter table items add column thumb')
-except sqlite3.OperationalError: pass
-db.execute('create table if not exists progress(slug primary key, cid, page int)')
+db, lock = open_database(BASE / 'library.db')
 Q, jobs, ids, prev, _op = queue.Queue(), {}, itertools.count(1), {}, [None]
 VID = {'.mp4', '.mkv', '.webm', '.mov', '.avi', '.flv', '.m4v'}; AUD = {'.mp3', '.m4a', '.opus', '.flac', '.wav', '.ogg', '.aac'}
 
 def sql(s, a=()):
-    with lock:
-        r = db.execute(s, a).fetchall(); db.commit(); return r
+    return execute(db, lock, s, a)
 def safe(s): return re.sub(r'[\\/:*?"<>|]+', '_', str(s or '')).strip()[:100] or 'Unknown'
 def root(sub):
     p = Path(cfg['folder']) / sub; p.mkdir(parents=True, exist_ok=True); return p
@@ -505,7 +508,6 @@ def manga_site(job):  # ссылка на тайтл -> сами открыва�
 _gs = {}
 def games_server():  # GameSweep живёт внутри MediaHub; после каждого сканирования игры попадают в библиотеку
     if 'h' not in _gs:
-        import sys; sys.path.insert(0, str(BASE)); import gamesweep
         httpd = gamesweep.make_server(cfg.get('games_root', ''), 0); httpd.store.on_done = sync_games
         threading.Thread(target=httpd.serve_forever, daemon=True).start(); _gs['h'] = httpd
     return _gs['h']
@@ -515,7 +517,6 @@ def games_scan(root):
     if root and os.path.isdir(root): games_server().store.start_scan(root, 'auto')
 def plural(n, f): return f'{n} ' + (f[0] if n % 10 == 1 and n % 100 != 11 else f[1] if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else f[2])
 def sync_games(games, root):  # установленные игры: сливаем с карточками из браузера (по названию), остальные добавляем
-    import gamesweep
     root = os.path.abspath(root); buckets = {}
     for g in games:
         pn = gamesweep.parse_name(g['name']); buckets.setdefault(pn['key'] or g['name'].casefold(), []).append((g, pn))
@@ -807,9 +808,7 @@ def manga_browser(job):  # те же шаги, что в manga_site, но сай
     job['final'] = (f'готово: {okn[0]} из {N} глав.' if not bad else f'частично: {okn[0]} из {N} глав. Не удалось: ' + '; '.join(f'{k} ({v})' for k, v in list(bad.items())[:3])) + warn
 
 # ---------- библиотека игр: карточка из страницы темы, версии, обновления ----------
-import gamelib
 def name_key(name):
-    import gamesweep
     return gamesweep.parse_name(name)['key'] or re.sub(r'\W+', '', str(name).casefold())
 def ginfo(r):
     try: return json.loads(r['info'] or '{}')
@@ -981,7 +980,7 @@ class H(BaseHTTPRequestHandler):
         except Exception as e: self.js({'error': str(e)}, 500)
     def get(self):
         u = urlparse(self.path); p = unquote(u.path); qs = {k: v[0] for k, v in parse_qs(u.query).items()}
-        if p == '/': return self.file(BASE / 'index.html')
+        if p == '/': return self.file(ASSETS / 'ui' / 'index.html')
         if p == '/api/jobs':
             now = time.time(); keys = ('id', 'url', 'kind', 'status', 'pct', 'title', 'eta', 'daily', 'start_at')
             return self.js([dict({k: j.get(k) for k in keys}, speed=(j.get('speed') or 0) if now - j.get('_ts', now) < 8 else 0) for j in jobs.values()])
@@ -989,7 +988,7 @@ class H(BaseHTTPRequestHandler):
         if p == '/api/inbox': return self.js(inbox_state())
         if p == '/api/ext':
             for o in [o for o, v in PAIR.items() if time.time() - v['t'] > 150]: PAIR.pop(o, None)
-            return self.js({'pending': [{'origin': o, 'name': v['name']} for o, v in PAIR.items()], 'paired': list(EXT), 'ext_dir': str(BASE / 'extension'), 'ext_ff': str(BASE / 'extension-firefox' / 'manifest.json'), 'inbox_pending': sql("select count(*) n from inbox where status='pending'")[0]['n']})
+            return self.js({'pending': [{'origin': o, 'name': v['name']} for o, v in PAIR.items()], 'paired': list(EXT), 'ext_dir': str(ASSETS / 'extension'), 'ext_ff': str(ASSETS / 'extension-firefox' / 'manifest.json'), 'inbox_pending': sql("select count(*) n from inbox where status='pending'")[0]['n']})
         if p == '/api/settings': return self.js(cfg)
         if p == '/api/games': return self.js({'url': games_url()})
         if p == '/api/disk': return self.js(dict(zip(('total', 'used', 'free'), shutil.disk_usage(root('Video')))))
@@ -1007,7 +1006,7 @@ class H(BaseHTTPRequestHandler):
                 out.append(d)
             return self.js(out)
         mm = re.match(r'/m/(\d+)$', p)
-        if mm: return self.file(BASE / 'reader.html')
+        if mm: return self.file(ASSETS / 'ui' / 'reader.html')
         mm = re.match(r'/api/manga/(\d+)$', p)
         if mm: return self.js(manga_info(int(mm.group(1))))
         mm = re.match(r'/mi/(\d+)/(\d+)/(\d{3}\.\w+)$', p)
@@ -1065,7 +1064,6 @@ class H(BaseHTTPRequestHandler):
             r = sql('select * from items where id=?', (d.get('id'),))
             if not r or r[0]['kind'] == 'link': return self.js({'ok': False})
             t = r[0]['root'] if (r[0]['kind'] in ('manga', 'site') and r[0]['root']) else r[0]['path']
-            import sys; sys.path.insert(0, str(BASE)); import gamesweep
             return self.js({'ok': bool(t and os.path.exists(t) and gamesweep.reveal(t))})
         if p == '/api/game/add': return self.js({'job': new_job(gamelib.thread_key(str(d.get('url') or '').strip()), 'gamecard', title=str(d.get('url'))[:120])}) if str(d.get('url') or '').startswith('http') else self.js({'error': 'нужна ссылка на тему игры'})
         if p == '/api/game/check':
@@ -1123,8 +1121,8 @@ class H(BaseHTTPRequestHandler):
             CFG.write_text(json.dumps(cfg, ensure_ascii=False, indent=1), 'utf-8'); return self.js(cfg)
         self.send_error(404)
 
-if __name__ == '__main__':
+def main():
     scan(); threading.Thread(target=backfill, daemon=True).start()
     spawn_workers(); threading.Thread(target=settle_loop, daemon=True).start(); threading.Thread(target=game_auto_loop, daemon=True).start()
     if cfg.get('games_root'): threading.Thread(target=games_scan, args=(cfg['games_root'],), daemon=True).start()
-    print('MediaHub: http://127.0.0.1:8765'); webbrowser.open('http://127.0.0.1:8765'); ThreadingHTTPServer(('127.0.0.1', 8765), H).serve_forever()
+    print('MediaHub: http://127.0.0.1:8765'); os.environ.get('MEDIAHUB_NO_BROWSER') or webbrowser.open('http://127.0.0.1:8765'); ThreadingHTTPServer(('127.0.0.1', 8765), H).serve_forever()

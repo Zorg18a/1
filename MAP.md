@@ -1,0 +1,49 @@
+# Карта проекта
+
+Версионируемые файлы; пользовательские данные и сборки не перечисляются.
+
+- `.github/workflows/build-exe.yml` — Windows CI: тесты, сборка PyInstaller, артефакт.
+- `.gitignore` — Исключения Git для данных, секретов и сборок.
+- `AGENTS.md` — Правила архитектуры и работы ИИ.
+- `MAP.md` — Карта проекта.
+- `README.md` — Запуск, перенос данных и получение сборки.
+- `STATE.md` — Эстафета: решения, проверки и план.
+- `app.py` — Точка входа приложения.
+- `core/__init__.py` — Пакет бизнес-логики.
+- `core/gamelib.py` — Разбор карточек игр, URL и сравнение версий.
+- `extension-firefox/background.js` — Фоновая логика расширения и обмен с MediaHub.
+- `extension-firefox/icon128.png` — Иконка расширения указанного размера.
+- `extension-firefox/icon16.png` — Иконка расширения указанного размера.
+- `extension-firefox/icon32.png` — Иконка расширения указанного размера.
+- `extension-firefox/icon48.png` — Иконка расширения указанного размера.
+- `extension-firefox/manifest.json` — Манифест и разрешения расширения.
+- `extension-firefox/popup.css` — Стили окна расширения.
+- `extension-firefox/popup.html` — Разметка окна расширения.
+- `extension-firefox/popup.js` — Управление окном расширения.
+- `extension/background.js` — Фоновая логика расширения и обмен с MediaHub.
+- `extension/icon128.png` — Иконка расширения указанного размера.
+- `extension/icon16.png` — Иконка расширения указанного размера.
+- `extension/icon32.png` — Иконка расширения указанного размера.
+- `extension/icon48.png` — Иконка расширения указанного размера.
+- `extension/io_stub.js` — Вспомогательная совместимость для Chromium.
+- `extension/manifest.json` — Манифест и разрешения расширения.
+- `extension/popup.css` — Стили окна расширения.
+- `extension/popup.html` — Разметка окна расширения.
+- `extension/popup.js` — Управление окном расширения.
+- `legacy/README-original.md` — Историческое описание архива; пути могут устареть.
+- `legacy/__init__.py` — Пакет совместимости исходного приложения.
+- `legacy/app.py` — Исходный сервер MediaHub, очередь и большая часть логики; техдолг.
+- `legacy/gamesweep.py` — Исходный GameSweep, включая встроенный UI и selftest; техдолг.
+- `requirements.txt` — Зависимости приложения.
+- `start.bat` — Установка зависимостей и запуск на Windows.
+- `storage/__init__.py` — Пакет хранения данных.
+- `storage/database.py` — Подключение SQLite, начальная миграция и транзакции.
+- `tests/test_core.py` — Тесты парсера игр и группировки версий.
+- `tests/test_http.py` — HTTP smoke-тесты, защита и входящие на временной базе.
+- `tests/test_storage.py` — Тесты SQLite, миграции и rollback.
+- `ui/__init__.py` — Пакет ресурсов интерфейса.
+- `ui/index.html` — Главный браузерный интерфейс.
+- `ui/reader.html` — Читалка манги.
+- `scripts/smoke_exe.py` — проверка запущенной сборки и комплектности ресурсов на Windows.
+- `tests/test_migration.py` — интеграционный тест миграции копии старой базы и HTTP.
+- `scripts/run_tests.py` — запускает тесты и выводит ошибки в аннотации GitHub Actions.

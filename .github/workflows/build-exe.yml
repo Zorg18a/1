@@ -1,0 +1,35 @@
+name: Build Windows executable
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt pyinstaller
+      - name: Check Python and tests
+        run: |
+          python -m compileall -q app.py core storage ui legacy tests
+          python scripts/run_tests.py
+      - name: Build executable
+        run: >-
+          python -m PyInstaller --noconfirm --clean --onedir --name MediaHub
+          --add-data "ui;ui"
+          --add-data "extension;extension"
+          --add-data "extension-firefox;extension-firefox"
+          --collect-all yt_dlp --collect-all playwright app.py
+      - name: Smoke-test packaged application
+        run: python scripts/smoke_exe.py dist/MediaHub/MediaHub.exe
+      - name: Upload Windows folder
+        uses: actions/upload-artifact@v4
+        with:
+          name: MediaHub-Windows
+          path: dist/MediaHub/
+          if-no-files-found: error
