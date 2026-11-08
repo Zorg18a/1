@@ -20,6 +20,16 @@ def get(port, path, host=None):
         connection.close()
 
 
+def post(path, data):
+    connection = http.client.HTTPConnection('127.0.0.1', 8765, timeout=5)
+    try:
+        connection.request('POST', path, json.dumps(data), {'X-MH': '1', 'Content-Type': 'application/json'})
+        response = connection.getresponse()
+        return response.status, json.loads(response.read())
+    finally:
+        connection.close()
+
+
 def check(process):
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
@@ -38,6 +48,13 @@ def check(process):
     assert get(8765, '/m/1')[0] == 200
     status, body = get(8765, '/api/library')
     assert status == 200 and json.loads(body) == []
+    status, result = post('/api/add', {'urls': 'https://example.invalid/test', 'kind': 'video',
+                                       'start_at': time.time() + 3600})
+    assert status == 200 and result['added'] == 1
+    status, body = get(8765, '/api/jobs')
+    jobs = json.loads(body)
+    assert status == 200 and len(jobs) == 1 and jobs[0]['status'].startswith('запланировано')
+    assert post('/api/cancel', {'id': jobs[0]['id']})[0] == 200
     status, body = get(8765, '/api/ext')
     info = json.loads(body)
     assert status == 200 and Path(info['ext_dir'], 'manifest.json').is_file()

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from storage.database import open_database, execute
 from core import gamelib
+from core.classify import classify
 from legacy import gamesweep
 
 mimetypes.add_type('image/avif', '.avif')
@@ -621,21 +622,6 @@ ACT = {'manga': ['download', 'track', 'link', 'skip'], 'video': ['download', 'li
        'podcast': ['link', 'track', 'skip'], 'game': ['gamecard', 'link', 'skip'], 'unknown': ['link', 'site', 'skip']}
 DEFAULT = {'manga': 'download', 'video': 'download', 'playlist': 'download', 'audio': 'download', 'podcast': 'link', 'game': 'link', 'unknown': 'link'}
 JOBK = {'manga': 'mangaurl', 'video': 'video', 'playlist': 'video', 'audio': 'audio', 'unknown': 'site'}
-def classify(url):  # тип материала и ключ для поиска в библиотеке (по адресу, без запросов в сеть)
-    u = urlparse(url); h = (u.hostname or '').lower(); h = h[4:] if h.startswith('www.') else h; q = parse_qs(u.query); p = u.path; r = {'kind': 'unknown', 'host': h, 'key': url}
-    m = re.match(r'^/manga/([a-z0-9-]+)', p)
-    if h == 'senkuro.me' and m: return dict(r, kind='manga', key='manga:' + m.group(1), norm=f'https://senkuro.me/manga/{m.group(1)}')
-    if h in ('youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be'):
-        vid = p.strip('/') if h == 'youtu.be' else (q.get('v') or [''])[0]; lst = (q.get('list') or [''])[0]
-        if p == '/playlist' and lst: return dict(r, kind='playlist', key='https://www.youtube.com/playlist?list=' + lst)
-        if p.startswith(('/@', '/channel/', '/c/', '/user/')): return dict(r, kind='playlist', key=url.split('?')[0].split('#')[0])
-        if vid: return dict(r, kind='audio' if h == 'music.youtube.com' else 'video', key='https://www.youtube.com/watch?v=' + vid)
-    if h in ('vimeo.com', 'rutube.ru', 'dailymotion.com', 'twitch.tv', 'bilibili.com', 'ok.ru', 'vkvideo.ru', 'tiktok.com'): return dict(r, kind='video')
-    if h in ('soundcloud.com', 'bandcamp.com') or h.endswith('.bandcamp.com'): return dict(r, kind='audio')
-    if h == 'podcasts.apple.com' or (h == 'open.spotify.com' and p.startswith('/show')) or p.endswith(('.rss', '.xml')): return dict(r, kind='podcast')
-    if h == 'f95zone.to' and p.startswith('/threads/'): return dict(r, kind='game', key=gamelib.thread_key(url))
-    if h in ('store.steampowered.com', 'steamcommunity.com', 'gog.com', 'itch.io', 'store.epicgames.com') or h.endswith('.itch.io'): return dict(r, kind='game')
-    return r
 def new_job(url, kind, **kw):
     j = {'id': next(ids), 'url': url, 'kind': kind, 'res': cfg['res'], 'afmt': cfg['afmt'], 'depth': int(cfg['depth']), 'maxp': int(cfg['maxp']), 'videos': bool(cfg['videos']), 'sel': [], 'first': 0, 'last': 0,
          'topic': '', 'subs': cfg['subs_langs'] if cfg['subs_on'] else '', 'thumbs': bool(cfg['thumbs']), 'start_at': 0.0, 'daily': False, 'status': 'в очереди', 'pct': 0, 'title': url, 'speed': 0, 'eta': 0, 'cancel': False}
@@ -1067,8 +1053,8 @@ class H(BaseHTTPRequestHandler):
             return self.js({'ok': bool(t and os.path.exists(t) and gamesweep.reveal(t))})
         if p == '/api/game/add': return self.js({'job': new_job(gamelib.thread_key(str(d.get('url') or '').strip()), 'gamecard', title=str(d.get('url'))[:120])}) if str(d.get('url') or '').startswith('http') else self.js({'error': 'нужна ссылка на тему игры'})
         if p == '/api/game/check':
-            ids = [d['id']] if d.get('id') else None
-            return self.js({'job': new_job('games:check', 'gamecheck', ids=ids, title='Проверка игр')})
+            game_ids = [d['id']] if d.get('id') else None
+            return self.js({'job': new_job('games:check', 'gamecheck', ids=game_ids, title='Проверка игр')})
         if p == '/api/game/set':
             r = sql("select * from items where id=? and kind='game'", (d.get('id'),))
             if r:
