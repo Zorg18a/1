@@ -16,7 +16,7 @@ class IncomingDownloadTests(unittest.TestCase):
             root = Path(tmp) / 'games'
             root.mkdir()
             folder = incoming_downloads.incoming_folder(str(base), str(root))
-            self.assertEqual(folder, base / 'Incoming_Downloads')
+            self.assertEqual(folder, (base / 'Incoming_Downloads').resolve())
             self.assertTrue(folder.is_dir())
             for games in (base, folder, folder / 'nested'):
                 with self.subTest(games=games), self.assertRaises(ValueError):
