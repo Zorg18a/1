@@ -93,7 +93,16 @@ def _entries(data, count, directory_offset):
     return entries
 
 
-def inspect_zip(path, expected_identity, verify_data=False):
+def ensure_identity(path, expected_identity):
+    try:
+        info = Path(path).lstat()
+    except FileNotFoundError as exc:
+        raise ArchiveChanged('Архив был перемещён во время проверки') from exc
+    if not _regular(info) or stat_identity(info) != expected_identity:
+        raise ArchiveChanged('Архив изменился во время проверки')
+
+
+def inspect_zip(path, expected_identity, verify_data=False, include_names=False):
     path = Path(path)
     try:
         before = path.lstat()
@@ -112,6 +121,9 @@ def inspect_zip(path, expected_identity, verify_data=False):
         result = check_zip_entries(entries)
         if verify_data:
             result.update(verify_content(source, entries, offset))
+        if include_names:
+            result['_entries'] = [{'path': entry.filename, 'kind': 'directory' if entry.is_dir() else 'file'}
+                                  for entry in entries]
         try:
             after_path = path.lstat()
         except FileNotFoundError as exc:

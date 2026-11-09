@@ -22,6 +22,31 @@ export async function inspectCandidate(gameId, candidate, button, status, verify
   finally { button.disabled = false; }
 }
 
+export async function compareCandidate(gameId, candidate, button, status, results) {
+  if (button.disabled) return;
+  button.disabled = true; results.replaceChildren(); status.textContent = 'Сопоставляю возможные сохранения с путями ZIP…';
+  try {
+    const response = await fetch('/api/game/zip-inspect', { method: 'POST',
+      headers: { 'X-MH': '1', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: gameId, name: candidate.name, identity: candidate.identity, compare_saves: true }) });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Не удалось сопоставить пути');
+    const preview = data.inspection.save_comparison;
+    const labels = { file_same_path: 'совпадает путь файла в ZIP', directory_shared: 'папка или её элементы есть в ZIP; содержимое не сравнивалось',
+      type_conflict: 'конфликт типов файл/папка', ancestor_file: 'на пути в ZIP находится файл', not_found: 'совпадающий путь в ZIP не найден',
+      unsupported_name: 'имя нельзя сопоставить с ZIP' };
+    status.textContent = `Папка игры: ${preview.game_folder}. Расположений: ${preview.candidates.length}.${preview.incomplete ? ' Поиск неполный.' : ''} Пути сравниваются от корней папки игры и ZIP, без определения обёртки; AppData, облако и содержимое папок не проверены. Отсутствие совпадений не исключает конфликты. Локальные заголовки, данные и CRC не проверены; это не план установки или резервная копия.`;
+    const list = document.createElement('ul');
+    for (const entry of preview.candidates) {
+      const item = document.createElement('li');
+      item.textContent = `${entry.path}: ${labels[entry.relation] || 'неизвестный результат'}`;
+      list.append(item);
+    }
+    results.append(list);
+  } catch (error) { status.textContent = error.message || 'Не удалось сопоставить пути'; }
+  finally { button.disabled = false; }
+}
+
 export function setupSavePreview(gameId, section) {
   const button = section.querySelector('.save-preview-button');
   const status = section.querySelector('.save-preview-status');
@@ -95,23 +120,30 @@ export function setupUpdatePreview() {
             const item = document.createElement('li');
             item.textContent = `${candidate.name} — ${formatBytes(candidate.size)}, версия в имени: ${candidate.version || 'не определена'}`;
             if (candidate.name.toLowerCase().endsWith('.zip') && candidate.identity) {
-              const check = document.createElement('button'), verify = document.createElement('button'), report = document.createElement('p');
+              const check = document.createElement('button'), verify = document.createElement('button'), compare = document.createElement('button');
+              const report = document.createElement('p'), comparison = document.createElement('div');
               check.type = 'button'; check.className = 'btn'; check.textContent = 'Проверить метаданные ZIP';
               check.setAttribute('aria-label', `Проверить метаданные ZIP: ${candidate.name}`);
               check.setAttribute('data-zip-name', candidate.name); check.setAttribute('data-zip-mode', 'metadata');
               verify.type = 'button'; verify.className = 'btn'; verify.textContent = 'Проверить данные и CRC ZIP';
               verify.setAttribute('aria-label', `Проверить данные и CRC ZIP: ${candidate.name}`);
               verify.setAttribute('data-zip-name', candidate.name); verify.setAttribute('data-zip-mode', 'data');
+              compare.type = 'button'; compare.className = 'btn'; compare.textContent = 'Сопоставить пути сохранений с ZIP';
+              compare.setAttribute('aria-label', `Сопоставить пути сохранений с ZIP: ${candidate.name}`);
+              compare.setAttribute('data-zip-name', candidate.name); compare.setAttribute('data-zip-mode', 'compare');
               report.setAttribute('role', 'status'); report.className = 'mu';
-              const run = async (selected, other, data) => {
-                if (selected.disabled || other.disabled) return;
-                other.disabled = true;
-                try { await inspectCandidate(game.id, candidate, selected, report, data); }
-                finally { other.disabled = false; }
+              const actions = [check, verify, compare];
+              const run = async (selected, action) => {
+                if (actions.some(el => el.disabled)) return;
+                actions.filter(el => el !== selected).forEach(el => { el.disabled = true; });
+                comparison.replaceChildren();
+                try { await action(); }
+                finally { actions.forEach(el => { el.disabled = false; }); }
               };
-              check.addEventListener('click', () => run(check, verify, false));
-              verify.addEventListener('click', () => run(verify, check, true));
-              item.append(check, verify, report);
+              check.addEventListener('click', () => run(check, () => inspectCandidate(game.id, candidate, check, report)));
+              verify.addEventListener('click', () => run(verify, () => inspectCandidate(game.id, candidate, verify, report, true)));
+              compare.addEventListener('click', () => run(compare, () => compareCandidate(game.id, candidate, compare, report, comparison)));
+              item.append(check, verify, compare, report, comparison);
             }
             list.append(item);
           }

@@ -2,9 +2,11 @@
 import re
 
 from core.update_preview import archive_stem
+from core.save_compare import compare_paths
 from core.zip_rules import ArchiveRejected
 from storage.incoming_downloads import incoming_folder, list_archives
-from storage.zip_inspection import ArchiveChanged, inspect_zip
+from storage.zip_inspection import ArchiveChanged, ensure_identity, inspect_zip
+from storage.save_discovery import DiscoveryBusy, discover_saves
 from storage.zip_content import VerificationBusy
 
 
@@ -12,8 +14,11 @@ def inspect_request(data, lookup, parse_name, download_folder, games_root):
     if not isinstance(data, dict) or type(data.get('id')) is not int or data['id'] < 1:
         return {'error': 'Некорректный идентификатор игры'}, 400
     verify_data = data.get('verify_data', False)
-    if type(verify_data) is not bool:
+    compare_saves = data.get('compare_saves', False)
+    if type(verify_data) is not bool or type(compare_saves) is not bool or verify_data and compare_saves:
         return {'error': 'Некорректный режим проверки ZIP'}, 400
+    if compare_saves and set(data) - {'id', 'name', 'identity', 'compare_saves'}:
+        return {'error': 'Сопоставление принимает только выбранный архив и id игры'}, 400
     name, identity = data.get('name'), data.get('identity')
     if (not isinstance(name, str) or not name.lower().endswith('.zip') or len(name) > 255 or
             any(c in name for c in '/\\:') or any(ord(c) < 32 or ord(c) == 127 for c in name) or
@@ -33,8 +38,13 @@ def inspect_request(data, lookup, parse_name, download_folder, games_root):
             return {'error': 'Имя архива не соответствует выбранной игре'}, 400
         if entry['identity'] != identity:
             return {'error': 'Архив изменился: обновите поиск'}, 409
-        result = inspect_zip(folder / name, identity, verify_data=verify_data)
-    except VerificationBusy as exc:
+        result = inspect_zip(folder / name, identity, verify_data=verify_data, include_names=compare_saves)
+        if compare_saves:
+            entries = result.pop('_entries')
+            preview = discover_saves(games_root, game['path'])
+            ensure_identity(folder / name, identity)
+            result['save_comparison'] = compare_paths(preview, entries)
+    except (VerificationBusy, DiscoveryBusy) as exc:
         return {'error': str(exc)}, 409
     except ArchiveChanged as exc:
         return {'error': str(exc)}, 409
@@ -43,7 +53,9 @@ def inspect_request(data, lookup, parse_name, download_folder, games_root):
     except ValueError as exc:
         return {'error': str(exc)}, 400
     except PermissionError:
-        return {'error': 'Нет доступа к архиву'}, 403
+        return {'error': 'Нет доступа к архиву или папке игры'}, 403
+    except FileNotFoundError:
+        return {'error': 'Папка игры или корень библиотеки недоступны'}, 404
     except OSError:
-        return {'error': 'Не удалось прочитать архив'}, 500
+        return {'error': 'Не удалось прочитать архив или папку игры'}, 500
     return {'inspection': result}, 200

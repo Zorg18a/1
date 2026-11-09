@@ -19,7 +19,7 @@ jobs:
           python -m compileall -q app.py core storage ui legacy tests
           python scripts/run_tests.py
       - name: Check UI modules
-        run: node --test tests/test_ui.mjs tests/test_quick_game.mjs tests/test_game_library.mjs tests/test_update_preview.mjs
+        run: node --test tests/test_ui.mjs tests/test_quick_game.mjs tests/test_game_library.mjs tests/test_update_preview.mjs tests/test_save_compare.mjs
       - name: Build executable
         run: >-
           python -m PyInstaller --noconfirm --clean --onedir --name MediaHub

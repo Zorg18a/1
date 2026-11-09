@@ -16,6 +16,7 @@
 - `core/update_preview.py` — подбор возможных архивов по имени без установки.
 - `core/update_inspect.py` — проверка запроса и привязка ZIP к выбранной игре.
 - `core/save_preview.py` — валидация запроса и обработка ошибок поиска возможных сохранений.
+- `core/save_compare.py` — приблизительное сравнение путей подсказок сохранений с каталогом ZIP.
 - `core/zip_rules.py` — ограничения и проверка метаданных имён и размеров ZIP.
 - `docs/smart-update-design.md` — требования к безопасному обновлению и откату.
 - `core/job_queue.py` — очередь заданий, таймеры и потоки обработчиков.
@@ -70,6 +71,7 @@
 - `tests/test_zip_inspection.py` — реальные ZIP, повреждения структуры и изменение файла.
 - `tests/test_zip_content.py` — stored/deflate, дескрипторы, повреждения, лимиты и изменение файла.
 - `tests/test_save_discovery.py` — подсказки сохранений, ограничения, ссылки и гонки.
+- `tests/test_save_compare.py`, `tests/test_save_compare_request.py`, `tests/test_save_compare_http.py`, `tests/test_save_compare.mjs` — сравнение путей, изоляция, API и интерфейс.
 - `tests/test_zip_inspection_http.py` — изолированная проверка ZIP через HTTP.
 - `tests/test_game_tags.py` — проверки валидации, сохранения и отката тегов.
 - `tests/test_game_tags_http.py` — сканирование и HTTP тегов во временной библиотеке.

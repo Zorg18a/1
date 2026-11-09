@@ -115,6 +115,7 @@ test('ZIP data check is only started by its labeled button', async () => {
       requests.push({ url, body: JSON.parse(options.body) });
       return { ok: true, json: async () => url.endsWith('incoming') ?
         { folder: 'x', candidates: [{ name: 'Game.zip', identity: 'a', size: 1 }] } :
+        JSON.parse(options.body).compare_saves ? { inspection: { save_comparison: { game_folder: 'x', incomplete: false, candidates: [] } } } :
         { inspection: { verified_files: 1, verified_bytes: 1 } } };
     };
     setupUpdatePreview();
@@ -122,11 +123,15 @@ test('ZIP data check is only started by its labeled button', async () => {
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(requests.length, 1);
     const buttons = results.querySelectorAll();
-    assert.equal(buttons.length, 2);
+    assert.equal(buttons.length, 3);
+    assert.match(buttons[2].getAttribute('aria-label'), /сохранений с ZIP.*Game.zip/);
     assert.match(buttons[1].getAttribute('aria-label'), /CRC.*Game.zip/);
     await buttons[1].click();
     assert.equal(requests[1].body.verify_data, true);
-    assert.match(results.children[1].children[0].children[2].textContent, /CRC проверены/);
+    assert.match(results.children[1].children[0].children[3].textContent, /CRC проверены/);
+    await buttons[2].click();
+    assert.equal(requests[2].body.compare_saves, true);
+    assert.match(results.children[1].children[0].children[3].textContent, /не план установки/);
   } finally {
     for (const k of Object.keys(old)) { if (old[k] === undefined) delete globalThis[k]; else globalThis[k] = old[k]; }
   }
