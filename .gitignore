@@ -14,6 +14,7 @@ ext.json
 archive_*.txt
 browser_profile/
 covers/
+Incoming_Downloads/
 ffmpeg/
 *.log
 *.zip

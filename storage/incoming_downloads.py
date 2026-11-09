@@ -1,0 +1,45 @@
+"""Prepare and list the dedicated incoming folder; never open or alter archives."""
+import os
+from pathlib import Path
+
+ARCHIVE_EXTENSIONS = ('.zip', '.7z', '.rar', '.tar', '.tar.gz', '.tgz')
+SCAN_LIMIT = 5000
+
+
+def is_incoming_path(path):
+    return bool(path) and any(part.casefold() == 'incoming_downloads' for part in Path(path).parts)
+
+
+def incoming_folder(download_folder, game_root=''):
+    if not isinstance(download_folder, str) or not download_folder.strip():
+        raise ValueError('Укажите папку загрузок в настройках')
+    base = Path(download_folder).expanduser().resolve()
+    if not base.is_dir():
+        raise ValueError('Папка загрузок недоступна: проверьте настройки')
+    incoming = base / 'Incoming_Downloads'
+    if incoming.is_symlink() or incoming.resolve() != incoming:
+        raise ValueError('Incoming_Downloads не должна быть ссылкой или находиться вне папки загрузок')
+    if game_root:
+        games = Path(game_root).expanduser().resolve()
+        candidate = incoming.resolve()
+        if games == candidate or games in candidate.parents or candidate in games.parents:
+            raise ValueError('Папки игр и Incoming_Downloads пересекаются: выберите другую папку загрузок или игр')
+    incoming.mkdir(exist_ok=True)
+    if not incoming.is_dir():
+        raise ValueError('Incoming_Downloads не является папкой')
+    return incoming
+
+
+def list_archives(folder):
+    archives = []
+    truncated = False
+    with os.scandir(folder) as entries:
+        for count, entry in enumerate(entries, 1):
+            if count > SCAN_LIMIT:
+                truncated = True
+                break
+            if not entry.name.lower().endswith(ARCHIVE_EXTENSIONS) or not entry.is_file(follow_symlinks=False):
+                continue
+            info = entry.stat(follow_symlinks=False)
+            archives.append({'name': entry.name, 'size': info.st_size, 'mtime': info.st_mtime})
+    return archives, truncated

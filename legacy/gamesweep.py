@@ -31,7 +31,7 @@ IS_WIN = os.name == "nt"
 # ===========================================================================
 ARCH = (".zip", ".rar", ".7z", ".tar", ".gz", ".tgz")
 CATEGORY = re.compile(r"^(new|n|part|batch|vol)[ _-]?\d+$", re.I)
-SKIP = {"$recycle.bin", "system volume information"}
+SKIP = {"$recycle.bin", "system volume information", "incoming_downloads"}
 
 
 def _skipped(name: str) -> bool:

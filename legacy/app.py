@@ -5,11 +5,12 @@ from urllib.parse import urlparse, urljoin, unquote, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from storage.database import open_database, execute
-from storage import cover_cache, cover_download, game_tags
+from storage import cover_cache, cover_download, game_tags, incoming_downloads
 from core import gamelib
 from core.classify import classify
 from core.game_sources import quick_game_request
 from core.game_tags import save_tags_request
+from core.update_preview import preview_request
 from core.job_queue import JobQueue
 from legacy import gamesweep
 mimetypes.add_type('image/avif', '.avif'); mimetypes.add_type('text/javascript', '.js')
@@ -531,7 +532,7 @@ def sync_games(games, root):  # установленные игры: слива�
             touched.add(sql('select id from items where url=?', ('game:' + key,))[0]['id'])
     for r in sql("select * from items where kind='game'"):
         i = ginfo(r)
-        if r['id'] in touched or (r['path'] and os.path.normcase(os.path.abspath(r['path'])) == cache) or i.get('inst', {}).get('root') != root and r['src'] != root: continue
+        if r['id'] in touched or incoming_downloads.is_incoming_path(r['path']) or (r['path'] and os.path.normcase(os.path.abspath(r['path'])) == cache) or i.get('inst', {}).get('root') != root and r['src'] != root: continue
         if i.get('meta') or i.get('note') or game_tags.has_tags(db, lock, r['id']): i.pop('inst', None); sql("update items set path='', size=0, info=? where id=?", (json.dumps(i, ensure_ascii=False), r['id']))   # карточка остаётся, игра больше не скачана
         else: sql('delete from items where id=? and not exists (select 1 from game_tags where item_id=items.id)', (r['id'],))
 def manga_extra(r):
@@ -944,7 +945,7 @@ class H(BaseHTTPRequestHandler):
         except Exception as e: self.js({'error': str(e)}, 500)
     def get(self):
         u = urlparse(self.path); p = unquote(u.path); qs = {k: v[0] for k, v in parse_qs(u.query).items()}
-        if p == '/' or p in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/game-library.js', '/ui/game-tags.js', '/ui/accessibility.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
+        if p == '/' or p in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/game-library.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/accessibility.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
         if p == '/api/jobs':
             now = time.time(); keys = ('id', 'url', 'kind', 'status', 'pct', 'title', 'eta', 'daily', 'start_at')
             return self.js([dict({k: j.get(k) for k in keys}, speed=(j.get('speed') or 0) if now - j.get('_ts', now) < 8 else 0) for j in jobs.values()])
@@ -1034,6 +1035,7 @@ class H(BaseHTTPRequestHandler):
         if p == '/api/game/check':
             game_ids = [d['id']] if d.get('id') else None
             return self.js({'job': new_job('games:check', 'gamecheck', ids=game_ids, title='Проверка игр')})
+        if p == '/api/game/incoming': return self.js(*preview_request(d, lambda item_id: next(iter(sql("select * from items where id=? and kind='game'", (item_id,))), None), game_view, gamesweep.parse_name, cfg['folder'], cfg.get('games_root', '')))
         if p == '/api/game/tags': return self.js(*save_tags_request(d, lambda item_id, tags: game_tags.replace_tags(db, lock, item_id, tags)))
         if p == '/api/game/set':
             r = sql("select * from items where id=? and kind='game'", (d.get('id'),))
