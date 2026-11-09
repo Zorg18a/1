@@ -5,11 +5,15 @@ from core.update_preview import archive_stem
 from core.zip_rules import ArchiveRejected
 from storage.incoming_downloads import incoming_folder, list_archives
 from storage.zip_inspection import ArchiveChanged, inspect_zip
+from storage.zip_content import VerificationBusy
 
 
 def inspect_request(data, lookup, parse_name, download_folder, games_root):
     if not isinstance(data, dict) or type(data.get('id')) is not int or data['id'] < 1:
         return {'error': 'Некорректный идентификатор игры'}, 400
+    verify_data = data.get('verify_data', False)
+    if type(verify_data) is not bool:
+        return {'error': 'Некорректный режим проверки ZIP'}, 400
     name, identity = data.get('name'), data.get('identity')
     if (not isinstance(name, str) or not name.lower().endswith('.zip') or len(name) > 255 or
             any(c in name for c in '/\\:') or any(ord(c) < 32 or ord(c) == 127 for c in name) or
@@ -29,7 +33,9 @@ def inspect_request(data, lookup, parse_name, download_folder, games_root):
             return {'error': 'Имя архива не соответствует выбранной игре'}, 400
         if entry['identity'] != identity:
             return {'error': 'Архив изменился: обновите поиск'}, 409
-        result = inspect_zip(folder / name, identity)
+        result = inspect_zip(folder / name, identity, verify_data=verify_data)
+    except VerificationBusy as exc:
+        return {'error': str(exc)}, 409
     except ArchiveChanged as exc:
         return {'error': str(exc)}, 409
     except ArchiveRejected as exc:

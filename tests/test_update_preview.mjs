@@ -74,9 +74,58 @@ test('explicit ZIP inspection reports metadata limits and stale archive errors',
     assert.match(status.textContent, /файлов 3/);
     assert.match(status.textContent, /CRC не проверены/);
     assert.equal(button.disabled, false);
+    globalThis.fetch = async (_url, options) => {
+      assert.equal(JSON.parse(options.body).verify_data, true);
+      return { ok: true, json: async () => ({ inspection: { verified_files: 1, verified_bytes: 42 } }) };
+    };
+    await inspectCandidate(7, candidate, button, status, true);
+    assert.match(status.textContent, /Данные и CRC проверены/);
+    assert.match(status.textContent, /не подтверждает безопасность/);
+    globalThis.fetch = async () => ({ ok: false, json: async () => ({ error: 'Архив изменился' }) });
     failed = true;
     await inspectCandidate(7, candidate, button, status);
     assert.equal(status.textContent, 'Архив изменился');
     assert.equal(button.disabled, false);
   } finally { globalThis.fetch = original; }
+});
+
+test('ZIP data check is only started by its labeled button', async () => {
+  const old = Object.fromEntries(['window', 'document', 'fetch'].map(k => [k, globalThis[k]]));
+  const handlers = {}, requests = [];
+  class Element {
+    constructor() { this.children = []; this.attrs = {}; this.disabled = false; this.isConnected = true; }
+    setAttribute(k, v) { this.attrs[k] = v; }
+    getAttribute(k) { return this.attrs[k] ?? null; }
+    addEventListener(type, fn) { this[type] = fn; }
+    append(...nodes) { this.children.push(...nodes); }
+    replaceChildren() { this.children = []; }
+    contains(el) { return this.children.some(c => c === el || c.contains(el)); }
+    querySelectorAll() { return this.children.flatMap(c => [c, ...c.querySelectorAll()]).filter(c => c.attrs['data-zip-name']); }
+    focus() { globalThis.document.activeElement = this; }
+  }
+  const button = new Element(), status = new Element(), results = new Element(), section = new Element();
+  section.querySelector = s => s === 'button' ? button : s === '[role="status"]' ? status : results;
+  const panel = { querySelector: s => s === '.update-preview' ? null : {}, insertBefore() {} };
+  try {
+    globalThis.window = { addEventListener: (t, f) => { handlers[t] = f; }, setInterval: () => 1 };
+    globalThis.document = { activeElement: null, querySelector: () => panel, createElement: t => t === 'section' ? section : new Element() };
+    globalThis.fetch = async (url, options) => {
+      requests.push({ url, body: JSON.parse(options.body) });
+      return { ok: true, json: async () => url.endsWith('incoming') ?
+        { folder: 'x', candidates: [{ name: 'Game.zip', identity: 'a', size: 1 }] } :
+        { inspection: { verified_files: 1, verified_bytes: 1 } } };
+    };
+    setupUpdatePreview();
+    handlers['mediahub:game-panel']({ detail: { id: 7, g: { downloaded: true } } });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(requests.length, 1);
+    const buttons = results.querySelectorAll();
+    assert.equal(buttons.length, 2);
+    assert.match(buttons[1].getAttribute('aria-label'), /CRC.*Game.zip/);
+    await buttons[1].click();
+    assert.equal(requests[1].body.verify_data, true);
+    assert.match(results.children[1].children[0].children[2].textContent, /CRC проверены/);
+  } finally {
+    for (const k of Object.keys(old)) { if (old[k] === undefined) delete globalThis[k]; else globalThis[k] = old[k]; }
+  }
 });

@@ -41,6 +41,17 @@ try:
     assert post('/api/game/zip-inspect', {'id': id, 'name': candidate['name'], 'identity': 'a' * 64})[0] == 409
     status, result = post('/api/game/zip-inspect', payload)
     assert status == 200 and result['inspection']['files'] == 1, (status, result)
+    assert post('/api/game/zip-inspect', dict(payload, verify_data='true'))[0] == 400
+    status, result = post('/api/game/zip-inspect', dict(payload, verify_data=True))
+    assert status == 200 and result['inspection']['verified_files'] == 1, (status, result)
+    corrupt = bytearray(original); corrupt[30 + len('game/file.txt')] ^= 1
+    archive.write_bytes(corrupt)
+    _, updated = post('/api/game/incoming', {'id': id})
+    bad = next(c for c in updated['candidates'] if c['name'] == archive.name)
+    assert post('/api/game/zip-inspect', {'id': id, 'name': archive.name, 'identity': bad['identity'], 'verify_data': True})[0] == 422
+    archive.write_bytes(original)
+    _, updated = post('/api/game/incoming', {'id': id})
+    payload['identity'] = next(c['identity'] for c in updated['candidates'] if c['name'] == archive.name)
     assert archive.read_bytes() == original and other.read_bytes() == other_before
     assert sorted(p.name for p in folder.iterdir()) == sorted([archive.name, other.name])
     unsafe = folder / 'Example Game v3.0.zip'

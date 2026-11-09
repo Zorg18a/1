@@ -5,17 +5,19 @@ function formatBytes(bytes) {
   return n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(2)} ГиБ` : `${(n / 1024 ** 2).toFixed(2)} МиБ`;
 }
 
-export async function inspectCandidate(gameId, candidate, button, status) {
+export async function inspectCandidate(gameId, candidate, button, status, verifyData = false) {
   if (button.disabled) return;
-  button.disabled = true; status.textContent = 'Проверяю метаданные ZIP…';
+  button.disabled = true; status.textContent = verifyData ? 'Проверяю данные и CRC ZIP…' : 'Проверяю метаданные ZIP…';
   try {
     const response = await fetch('/api/game/zip-inspect', { method: 'POST',
       headers: { 'X-MH': '1', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: gameId, name: candidate.name, identity: candidate.identity }) });
+      body: JSON.stringify({ id: gameId, name: candidate.name, identity: candidate.identity, ...(verifyData ? { verify_data: true } : {}) }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Не удалось проверить ZIP');
     const summary = result.inspection;
-    status.textContent = `Метаданные ZIP прошли предварительную проверку: файлов ${summary.files}, всего ${formatBytes(summary.uncompressed_bytes)}. Содержимое и CRC не проверены; безопасность и завершённость загрузки не подтверждены.`;
+    status.textContent = verifyData
+      ? `Данные и CRC проверены: файлов ${summary.verified_files}, всего ${formatBytes(summary.verified_bytes)}. Это не подтверждает безопасность, подлинность или завершённость загрузки; архив не установлен.`
+      : `Метаданные ZIP прошли предварительную проверку: файлов ${summary.files}, всего ${formatBytes(summary.uncompressed_bytes)}. Содержимое и CRC не проверены; безопасность и завершённость загрузки не подтверждены.`;
   } catch (error) { status.textContent = error.message || 'Не удалось проверить ZIP'; }
   finally { button.disabled = false; }
 }
@@ -28,7 +30,7 @@ export function setupUpdatePreview() {
     const section = document.createElement('section');
     section.className = 'update-preview';
     section.innerHTML = `<h4>Поиск скачанного обновления</h4>
-      <p class="mu">Здесь создаётся папка Incoming_Downloads. Скачайте архив вручную с сайта в эту папку; пока карточка открыта, поиск повторяется каждые 15 секунд. Ничего не устанавливается.</p>
+      <p class="mu">Здесь создаётся папка Incoming_Downloads. Скачайте архив вручную с сайта в эту папку; пока карточка открыта, поиск повторяется каждые 15 секунд. Ничего не устанавливается. Проверка данных ZIP ограничена 128 МиБ сжатых и 256 МиБ распакованных данных.</p>
       <button type="button" class="btn">Обновить поиск</button>
       <p role="status" aria-live="polite" class="mu"></p><div class="update-results"></div>`;
     const button = section.querySelector('button');
@@ -49,6 +51,7 @@ export function setupUpdatePreview() {
         if (!manual && current === lastResult) return;
         const active = document.activeElement;
         const focusedName = active && results.contains(active) ? active.getAttribute('data-zip-name') : null;
+        const focusedMode = active?.getAttribute('data-zip-mode');
         lastResult = current; results.replaceChildren();
         const info = document.createElement('p');
         info.className = 'mu';
@@ -60,13 +63,23 @@ export function setupUpdatePreview() {
             const item = document.createElement('li');
             item.textContent = `${candidate.name} — ${formatBytes(candidate.size)}, версия в имени: ${candidate.version || 'не определена'}`;
             if (candidate.name.toLowerCase().endsWith('.zip') && candidate.identity) {
-              const check = document.createElement('button'), report = document.createElement('p');
+              const check = document.createElement('button'), verify = document.createElement('button'), report = document.createElement('p');
               check.type = 'button'; check.className = 'btn'; check.textContent = 'Проверить метаданные ZIP';
               check.setAttribute('aria-label', `Проверить метаданные ZIP: ${candidate.name}`);
-              check.setAttribute('data-zip-name', candidate.name);
+              check.setAttribute('data-zip-name', candidate.name); check.setAttribute('data-zip-mode', 'metadata');
+              verify.type = 'button'; verify.className = 'btn'; verify.textContent = 'Проверить данные и CRC ZIP';
+              verify.setAttribute('aria-label', `Проверить данные и CRC ZIP: ${candidate.name}`);
+              verify.setAttribute('data-zip-name', candidate.name); verify.setAttribute('data-zip-mode', 'data');
               report.setAttribute('role', 'status'); report.className = 'mu';
-              check.addEventListener('click', () => inspectCandidate(game.id, candidate, check, report));
-              item.append(check, report);
+              const run = async (selected, other, data) => {
+                if (selected.disabled || other.disabled) return;
+                other.disabled = true;
+                try { await inspectCandidate(game.id, candidate, selected, report, data); }
+                finally { other.disabled = false; }
+              };
+              check.addEventListener('click', () => run(check, verify, false));
+              verify.addEventListener('click', () => run(verify, check, true));
+              item.append(check, verify, report);
             }
             list.append(item);
           }
@@ -77,7 +90,7 @@ export function setupUpdatePreview() {
         warning.textContent = 'Совпадение по имени не подтверждает игру или версию. Содержимое архивов и завершение скачивания не проверены; архивы не распакованы и не изменены.';
         results.append(warning);
         status.textContent = `${data.candidates.length ? `Возможных архивов: ${data.candidates.length}.` : 'Подходящих имён не найдено.'}${data.truncated ? ' Список ограничен, показаны не все файлы.' : ''}`;
-        if (focusedName !== null) ([...results.querySelectorAll('[data-zip-name]')].find(el => el.getAttribute('data-zip-name') === focusedName) || button).focus();
+        if (focusedName !== null) ([...results.querySelectorAll('[data-zip-name]')].find(el => el.getAttribute('data-zip-name') === focusedName && el.getAttribute('data-zip-mode') === focusedMode) || button).focus();
       } catch (error) {
         lastResult = ''; results.replaceChildren();
         const message = error.message || 'Не удалось найти архивы';

@@ -7,6 +7,7 @@ import zipfile
 
 from core.zip_rules import ArchiveRejected, MAX_ENTRIES, check_zip_entries
 from storage.incoming_downloads import stat_identity
+from storage.zip_content import verify_content
 
 MAX_DIRECTORY_BYTES = 4 * 1024 * 1024
 _EOCD = struct.Struct('<4s4H2IH')
@@ -56,7 +57,7 @@ def _entries(data, count, directory_offset):
         if len(entries) >= MAX_ENTRIES or pos + _CENTRAL.size > len(data):
             raise ArchiveRejected('Некорректное число элементов ZIP')
         fields = _CENTRAL.unpack_from(data, pos)
-        signature, made, needed, flags, method, _, _, _, compressed, uncompressed, name_len, extra_len, comment_len, disk, _, attrs, local_offset = fields
+        signature, made, needed, flags, method, mod_time, mod_date, crc, compressed, uncompressed, name_len, extra_len, comment_len, disk, _, attrs, local_offset = fields
         if signature != b'PK\x01\x02' or disk or 0xffffffff in (compressed, uncompressed, local_offset):
             raise ArchiveRejected('Некорректная или неподдерживаемая запись ZIP')
         end = pos + _CENTRAL.size + name_len + extra_len + comment_len
@@ -81,6 +82,10 @@ def _entries(data, count, directory_offset):
         info.create_system = made >> 8
         info.flag_bits, info.compress_type, info.external_attr = flags, method, attrs
         info.compress_size, info.file_size = compressed, uncompressed
+        info.CRC, info.header_offset, info.extract_version = crc, local_offset, needed
+        info._raw_time = mod_time
+        info.date_time = ((mod_date >> 9) + 1980, (mod_date >> 5) & 15, mod_date & 31,
+                          mod_time >> 11, (mod_time >> 5) & 63, (mod_time & 31) * 2)
         entries.append(info)
         pos = end
     if len(entries) != count:
@@ -88,7 +93,7 @@ def _entries(data, count, directory_offset):
     return entries
 
 
-def inspect_zip(path, expected_identity):
+def inspect_zip(path, expected_identity, verify_data=False):
     path = Path(path)
     try:
         before = path.lstat()
@@ -103,7 +108,10 @@ def inspect_zip(path, expected_identity):
         if not _regular(opened) or stat_identity(opened) != expected_identity:
             raise ArchiveChanged('Архив изменился: обновите поиск')
         data, count, offset = _read_directory(source, opened.st_size)
-        result = check_zip_entries(_entries(data, count, offset))
+        entries = _entries(data, count, offset)
+        result = check_zip_entries(entries)
+        if verify_data:
+            result.update(verify_content(source, entries, offset))
         try:
             after_path = path.lstat()
         except FileNotFoundError as exc:
