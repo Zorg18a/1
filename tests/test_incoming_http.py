@@ -41,6 +41,11 @@ try:
     assert request({'id': item_id}, False)[0] == 403 and not incoming.exists()
     assert request({'id': True})[0] == 400 and not incoming.exists()
     assert request({'id': 99999})[0] == 404 and not incoming.exists()
+    assert request({'id': item_id, 'mode': 'saves'}, False)[0] == 403
+    assert request({'id': item_id, 'mode': 'saves', 'path': str(base)})[0] == 400
+    status, result = request({'id': item_id, 'mode': 'saves'})
+    assert status == 200 and result['save_preview']['candidates'] == [{'path': 'save.sav', 'kind': 'file'}], (status, result)
+    assert not incoming.exists() and (game / 'save.sav').read_bytes() == b'old save'
     status, result = request({'id': item_id})
     assert status == 200 and incoming.is_dir() and not result['candidates']
     assert result['installed_path'] == str(game) and result['installed_version'] == '1.0'
@@ -53,6 +58,7 @@ try:
     assert (game / 'save.sav').read_bytes() == b'old save'
     assert app.sql('select path from items where id=?', (item_id,))[0]['path'] == str(game)
     app.cfg['games_root'] = str(downloads)
+    assert request({'id': item_id, 'mode': 'saves'})[0] == 400
     assert request({'id': item_id})[0] == 400
     assert good.read_bytes() == b'archive fixture'
 finally:

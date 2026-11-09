@@ -1,5 +1,6 @@
 """Conservative, read-only suggestions for manually downloaded game archives."""
 from storage.incoming_downloads import ARCHIVE_EXTENSIONS, incoming_folder, list_archives
+from core.save_preview import save_preview_request
 
 DISPLAY_LIMIT = 50
 
@@ -17,6 +18,10 @@ def preview_request(data, lookup, game_view, parse_name, download_folder, games_
     game = lookup(data['id'])
     if game is None:
         return {'error': 'Игра не найдена'}, 404
+    if 'mode' in data:
+        if data['mode'] != 'saves':
+            return {'error': 'Неизвестный режим просмотра'}, 400
+        return save_preview_request(data, game, game_view, games_root)
     try:
         folder = incoming_folder(download_folder, games_root)
         archives, scan_truncated = list_archives(folder)

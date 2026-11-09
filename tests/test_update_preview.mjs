@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../ui/game-update-preview.js', import.meta.url), 'utf8');
-const { setupUpdatePreview, inspectCandidate } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+const { setupUpdatePreview, inspectCandidate, setupSavePreview } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 test('preview requests only an id, reports failures and renders names as text', async () => {
   const keys = ['window', 'document', 'fetch'];
@@ -11,7 +11,8 @@ test('preview requests only an id, reports failures and renders names as text', 
   const listeners = {};
   const status = { textContent: '' }, results = { children: [], replaceChildren() { this.children = []; }, append(x) { this.children.push(x); } };
   const button = { disabled: false, addEventListener(_type, fn) { this.click = fn; } };
-  const section = { isConnected: true, querySelector(s) { return s === 'button' ? button : s === '[role="status"]' ? status : results; } };
+  const saveButton = { addEventListener() {} };
+  const section = { isConnected: true, querySelector(s) { return s === '.save-preview-button' ? saveButton : s === 'button' ? button : s === '[role="status"]' ? status : results; } };
   let inserted = false, request, fail = true, tick, cleared = false;
   const panel = { querySelector(s) { return s === '.update-preview' ? (inserted ? section : null) : {}; },
     insertBefore() { inserted = true; } };
@@ -104,7 +105,8 @@ test('ZIP data check is only started by its labeled button', async () => {
     focus() { globalThis.document.activeElement = this; }
   }
   const button = new Element(), status = new Element(), results = new Element(), section = new Element();
-  section.querySelector = s => s === 'button' ? button : s === '[role="status"]' ? status : results;
+  const saveButton = new Element();
+  section.querySelector = s => s === '.save-preview-button' ? saveButton : s === 'button' ? button : s === '[role="status"]' ? status : results;
   const panel = { querySelector: s => s === '.update-preview' ? null : {}, insertBefore() {} };
   try {
     globalThis.window = { addEventListener: (t, f) => { handlers[t] = f; }, setInterval: () => 1 };
@@ -128,4 +130,33 @@ test('ZIP data check is only started by its labeled button', async () => {
   } finally {
     for (const k of Object.keys(old)) { if (old[k] === undefined) delete globalThis[k]; else globalThis[k] = old[k]; }
   }
+});
+
+test('save discovery is explicit, renders paths as text and warns on incomplete search', async () => {
+  const oldFetch = globalThis.fetch, oldDocument = globalThis.document;
+  const button = { disabled: false, addEventListener(_event, fn) { this.click = fn; } };
+  const status = { textContent: '' };
+  const results = { children: [], replaceChildren() { this.children = []; }, append(x) { this.children.push(x); } };
+  const section = { querySelector: s => s === '.save-preview-button' ? button : s === '.save-preview-status' ? status : results };
+  const requests = [];
+  try {
+    globalThis.document = { createElement: () => ({ children: [], append(child) { this.children.push(child); }, textContent: '' }) };
+    globalThis.fetch = async (url, opts) => {
+      requests.push({ url, body: JSON.parse(opts.body) });
+      return { ok: true, json: async () => ({ save_preview: { game_folder: 'C:/Game', incomplete: true,
+        candidates: [{ path: '<img>.sav', kind: 'file' }] } }) };
+    };
+    setupSavePreview(7, section);
+    assert.equal(requests.length, 0);
+    await button.click();
+    assert.deepEqual(requests[0], { url: '/api/game/incoming', body: { id: 7, mode: 'saves' } });
+    assert.equal(results.children[0].children[0].textContent, '<img>.sav (файл)');
+    assert.match(status.textContent, /Поиск неполный/);
+    assert.match(status.textContent, /не резервная копия/);
+    assert.equal(button.disabled, false);
+    globalThis.fetch = async () => ({ ok: false, json: async () => ({ error: 'Нет доступа' }) });
+    await button.click();
+    assert.equal(status.textContent, 'Нет доступа');
+    assert.equal(results.children.length, 0);
+  } finally { globalThis.fetch = oldFetch; globalThis.document = oldDocument; }
 });

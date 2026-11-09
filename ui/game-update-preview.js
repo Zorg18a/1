@@ -22,6 +22,33 @@ export async function inspectCandidate(gameId, candidate, button, status, verify
   finally { button.disabled = false; }
 }
 
+export function setupSavePreview(gameId, section) {
+  const button = section.querySelector('.save-preview-button');
+  const status = section.querySelector('.save-preview-status');
+  const results = section.querySelector('.save-preview-results');
+  button.addEventListener('click', async () => {
+    if (button.disabled) return;
+    button.disabled = true; results.replaceChildren(); status.textContent = 'Ищу возможные сохранения…';
+    try {
+      const response = await fetch('/api/game/incoming', { method: 'POST',
+        headers: { 'X-MH': '1', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: gameId, mode: 'saves' }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Не удалось найти сохранения');
+      const preview = data.save_preview;
+      status.textContent = `Папка игры: ${preview.game_folder}. Возможных расположений: ${preview.candidates.length}.${preview.incomplete ? ' Поиск неполный: достигнут лимит или пропущены элементы.' : ''} Это не резервная копия; AppData и облачные сохранения не проверяются.`;
+      const list = document.createElement('ul');
+      for (const candidate of preview.candidates) {
+        const item = document.createElement('li');
+        item.textContent = `${candidate.path} (${candidate.kind === 'directory' ? 'папка' : 'файл'})`;
+        list.append(item);
+      }
+      results.append(list);
+    } catch (error) { status.textContent = error.message || 'Не удалось найти сохранения'; }
+    finally { button.disabled = false; }
+  });
+}
+
 export function setupUpdatePreview() {
   window.addEventListener('mediahub:game-panel', event => {
     const game = event.detail;
@@ -32,7 +59,12 @@ export function setupUpdatePreview() {
     section.innerHTML = `<h4>Поиск скачанного обновления</h4>
       <p class="mu">Здесь создаётся папка Incoming_Downloads. Скачайте архив вручную с сайта в эту папку; пока карточка открыта, поиск повторяется каждые 15 секунд. Ничего не устанавливается. Проверка данных ZIP ограничена 128 МиБ сжатых и 256 МиБ распакованных данных.</p>
       <button type="button" class="btn">Обновить поиск</button>
-      <p role="status" aria-live="polite" class="mu"></p><div class="update-results"></div>`;
+      <p role="status" aria-live="polite" class="mu"></p><div class="update-results"></div>
+      <h4>Возможные сохранения</h4>
+      <p class="mu">Поиск по именам только внутри папки игры, без чтения содержимого и копирования. Другие расположения могут быть пропущены.</p>
+      <button type="button" class="btn save-preview-button">Найти возможные сохранения</button>
+      <p role="status" aria-live="polite" class="mu save-preview-status"></p><div class="save-preview-results"></div>`;
+    setupSavePreview(game.id, section);
     const button = section.querySelector('button');
     const status = section.querySelector('[role="status"]');
     const results = section.querySelector('.update-results');
