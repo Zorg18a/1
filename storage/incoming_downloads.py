@@ -2,6 +2,7 @@
 import hashlib
 import os
 from pathlib import Path
+import stat
 
 ARCHIVE_EXTENSIONS = ('.zip', '.7z', '.rar', '.tar', '.tar.gz', '.tgz')
 SCAN_LIMIT = 5000
@@ -47,7 +48,9 @@ def list_archives(folder):
                 break
             if not entry.name.lower().endswith(ARCHIVE_EXTENSIONS) or not entry.is_file(follow_symlinks=False):
                 continue
-            info = entry.stat(follow_symlinks=False)
+            info = os.stat(entry.path, follow_symlinks=False)
+            if not stat.S_ISREG(info.st_mode) or getattr(info, 'st_file_attributes', 0) & getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0x400):
+                continue
             archives.append({'name': entry.name, 'size': info.st_size, 'mtime': info.st_mtime,
                              'identity': stat_identity(info)})
     return archives, truncated

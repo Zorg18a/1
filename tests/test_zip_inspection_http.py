@@ -40,7 +40,7 @@ try:
     assert post('/api/game/zip-inspect', {'id': id, 'name': 'Other Game.zip', 'identity': 'a' * 64})[0] == 400
     assert post('/api/game/zip-inspect', {'id': id, 'name': candidate['name'], 'identity': 'a' * 64})[0] == 409
     status, result = post('/api/game/zip-inspect', payload)
-    assert status == 200 and result['inspection']['files'] == 1
+    assert status == 200 and result['inspection']['files'] == 1, (status, result)
     assert archive.read_bytes() == original and other.read_bytes() == other_before
     assert sorted(p.name for p in folder.iterdir()) == sorted([archive.name, other.name])
     unsafe = folder / 'Example Game v3.0.zip'
@@ -58,5 +58,6 @@ finally:
     server.shutdown(); server.server_close(); thread.join(); app.db.close()
 '''
         with tempfile.TemporaryDirectory() as directory:
-            subprocess.run([sys.executable, '-c', code], env=dict(os.environ, MEDIAHUB_DATA_DIR=directory),
-                           check=True, timeout=30)
+            result = subprocess.run([sys.executable, '-c', code], env=dict(os.environ, MEDIAHUB_DATA_DIR=directory),
+                                    text=True, capture_output=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

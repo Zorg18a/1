@@ -58,6 +58,9 @@ class IncomingDownloadTests(unittest.TestCase):
             self.assertTrue(truncated)
             self.assertLessEqual(len(entries), 1)
             self.assertFalse(gamesweep.list_games(tmp))
+            entries, _ = incoming_downloads.list_archives(folder)
+            first = next(entry for entry in entries if entry['name'] == 'a.zip')
+            self.assertEqual(first['identity'], incoming_downloads.stat_identity((folder / 'a.zip').lstat()))
             self.assertEqual((folder / 'a.zip').read_bytes(), b'1')
 
     def test_matching_is_exact_and_preview_only(self):
