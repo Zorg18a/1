@@ -1,4 +1,5 @@
 """Prepare and list the dedicated incoming folder; never open or alter archives."""
+import hashlib
 import os
 from pathlib import Path
 
@@ -10,7 +11,12 @@ def is_incoming_path(path):
     return bool(path) and any(part.casefold() == 'incoming_downloads' for part in Path(path).parts)
 
 
-def incoming_folder(download_folder, game_root=''):
+def stat_identity(info):
+    fields = (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+    return hashlib.sha256(':'.join(map(str, fields)).encode('ascii')).hexdigest()
+
+
+def incoming_folder(download_folder, game_root='', *, create=True):
     if not isinstance(download_folder, str) or not download_folder.strip():
         raise ValueError('Укажите папку загрузок в настройках')
     base = Path(download_folder).expanduser().resolve()
@@ -24,7 +30,8 @@ def incoming_folder(download_folder, game_root=''):
         candidate = incoming.resolve()
         if games == candidate or games in candidate.parents or candidate in games.parents:
             raise ValueError('Папки игр и Incoming_Downloads пересекаются: выберите другую папку загрузок или игр')
-    incoming.mkdir(exist_ok=True)
+    if create:
+        incoming.mkdir(exist_ok=True)
     if not incoming.is_dir():
         raise ValueError('Incoming_Downloads не является папкой')
     return incoming
@@ -41,5 +48,6 @@ def list_archives(folder):
             if not entry.name.lower().endswith(ARCHIVE_EXTENSIONS) or not entry.is_file(follow_symlinks=False):
                 continue
             info = entry.stat(follow_symlinks=False)
-            archives.append({'name': entry.name, 'size': info.st_size, 'mtime': info.st_mtime})
+            archives.append({'name': entry.name, 'size': info.st_size, 'mtime': info.st_mtime,
+                             'identity': stat_identity(info)})
     return archives, truncated

@@ -5,6 +5,21 @@ function formatBytes(bytes) {
   return n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(2)} ГиБ` : `${(n / 1024 ** 2).toFixed(2)} МиБ`;
 }
 
+export async function inspectCandidate(gameId, candidate, button, status) {
+  if (button.disabled) return;
+  button.disabled = true; status.textContent = 'Проверяю метаданные ZIP…';
+  try {
+    const response = await fetch('/api/game/zip-inspect', { method: 'POST',
+      headers: { 'X-MH': '1', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: gameId, name: candidate.name, identity: candidate.identity }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Не удалось проверить ZIP');
+    const summary = result.inspection;
+    status.textContent = `Метаданные ZIP прошли предварительную проверку: файлов ${summary.files}, всего ${formatBytes(summary.uncompressed_bytes)}. Содержимое и CRC не проверены; безопасность и завершённость загрузки не подтверждены.`;
+  } catch (error) { status.textContent = error.message || 'Не удалось проверить ZIP'; }
+  finally { button.disabled = false; }
+}
+
 export function setupUpdatePreview() {
   window.addEventListener('mediahub:game-panel', event => {
     const game = event.detail;
@@ -32,6 +47,8 @@ export function setupUpdatePreview() {
         if (!response.ok) throw new Error(data.error || 'Не удалось найти архивы');
         const current = JSON.stringify(data);
         if (!manual && current === lastResult) return;
+        const active = document.activeElement;
+        const focusedName = active && results.contains(active) ? active.getAttribute('data-zip-name') : null;
         lastResult = current; results.replaceChildren();
         const info = document.createElement('p');
         info.className = 'mu';
@@ -42,15 +59,25 @@ export function setupUpdatePreview() {
           for (const candidate of data.candidates) {
             const item = document.createElement('li');
             item.textContent = `${candidate.name} — ${formatBytes(candidate.size)}, версия в имени: ${candidate.version || 'не определена'}`;
+            if (candidate.name.toLowerCase().endsWith('.zip') && candidate.identity) {
+              const check = document.createElement('button'), report = document.createElement('p');
+              check.type = 'button'; check.className = 'btn'; check.textContent = 'Проверить метаданные ZIP';
+              check.setAttribute('aria-label', `Проверить метаданные ZIP: ${candidate.name}`);
+              check.setAttribute('data-zip-name', candidate.name);
+              report.setAttribute('role', 'status'); report.className = 'mu';
+              check.addEventListener('click', () => inspectCandidate(game.id, candidate, check, report));
+              item.append(check, report);
+            }
             list.append(item);
           }
           results.append(list);
         }
         const warning = document.createElement('p');
         warning.className = 'mu';
-        warning.textContent = 'Совпадение по имени не подтверждает игру или версию. Архивы не проверены, не распакованы и не изменены; завершение скачивания тоже не проверено.';
+        warning.textContent = 'Совпадение по имени не подтверждает игру или версию. Содержимое архивов и завершение скачивания не проверены; архивы не распакованы и не изменены.';
         results.append(warning);
         status.textContent = `${data.candidates.length ? `Возможных архивов: ${data.candidates.length}.` : 'Подходящих имён не найдено.'}${data.truncated ? ' Список ограничен, показаны не все файлы.' : ''}`;
+        if (focusedName !== null) ([...results.querySelectorAll('[data-zip-name]')].find(el => el.getAttribute('data-zip-name') === focusedName) || button).focus();
       } catch (error) {
         lastResult = ''; results.replaceChildren();
         const message = error.message || 'Не удалось найти архивы';

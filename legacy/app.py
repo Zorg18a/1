@@ -11,6 +11,7 @@ from core.classify import classify
 from core.game_sources import quick_game_request
 from core.game_tags import save_tags_request
 from core.update_preview import preview_request
+from core.update_inspect import inspect_request
 from core.job_queue import JobQueue
 from legacy import gamesweep
 mimetypes.add_type('image/avif', '.avif'); mimetypes.add_type('text/javascript', '.js')
@@ -25,8 +26,7 @@ if CFG.exists(): cfg.update(json.loads(CFG.read_text('utf-8')))
 db, lock = open_database(BASE / 'library.db')
 jobs, ids, prev, _op = {}, itertools.count(1), {}, [None]
 VID = {'.mp4', '.mkv', '.webm', '.mov', '.avi', '.flv', '.m4v'}; AUD = {'.mp3', '.m4a', '.opus', '.flac', '.wav', '.ogg', '.aac'}
-def sql(s, a=()):
-    return execute(db, lock, s, a)
+def sql(s, a=()): return execute(db, lock, s, a)
 def safe(s): return re.sub(r'[\\/:*?"<>|]+', '_', str(s or '')).strip()[:100] or 'Unknown'
 def root(sub):
     p = Path(cfg['folder']) / sub; p.mkdir(parents=True, exist_ok=True); return p
@@ -505,8 +505,7 @@ def games_server():  # GameSweep живёт внутри MediaHub; после к
         httpd = gamesweep.make_server(cfg.get('games_root', ''), 0); httpd.store.on_done = sync_games
         threading.Thread(target=httpd.serve_forever, daemon=True).start(); _gs['h'] = httpd
     return _gs['h']
-def games_url():
-    h = games_server(); return f"http://127.0.0.1:{h.server_address[1]}/?t={h.token}"
+def games_url(): h = games_server(); return f"http://127.0.0.1:{h.server_address[1]}/?t={h.token}"
 def games_scan(root):
     if root and os.path.isdir(root): games_server().store.start_scan(root, 'auto')
 def plural(n, f): return f'{n} ' + (f[0] if n % 10 == 1 and n % 100 != 11 else f[1] if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else f[2])
@@ -1035,6 +1034,7 @@ class H(BaseHTTPRequestHandler):
         if p == '/api/game/check':
             game_ids = [d['id']] if d.get('id') else None
             return self.js({'job': new_job('games:check', 'gamecheck', ids=game_ids, title='Проверка игр')})
+        if p == '/api/game/zip-inspect': return self.js(*inspect_request(d, lambda item_id: next(iter(sql("select * from items where id=? and kind='game'", (item_id,))), None), gamesweep.parse_name, cfg['folder'], cfg.get('games_root', '')))
         if p == '/api/game/incoming': return self.js(*preview_request(d, lambda item_id: next(iter(sql("select * from items where id=? and kind='game'", (item_id,))), None), game_view, gamesweep.parse_name, cfg['folder'], cfg.get('games_root', '')))
         if p == '/api/game/tags': return self.js(*save_tags_request(d, lambda item_id, tags: game_tags.replace_tags(db, lock, item_id, tags)))
         if p == '/api/game/set':
