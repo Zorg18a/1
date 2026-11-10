@@ -43,7 +43,8 @@ function fixture() {
   const radios = ['width', 'height', 'orig'].map(value => Object.assign(new Element('input'), { value }));
   const doc = { documentElement: new Element('html'), getElementById: id => elements[id],
     querySelectorAll: () => radios, createElement: tag => new Element(tag) };
-  const win = { listeners: {}, addEventListener(type, handler) { this.listeners[type] = handler; } };
+  const win = { listeners: {}, addEventListener(type, handler) { this.listeners[type] = handler; },
+    removeEventListener(type, handler) { if (this.listeners[type] === handler) delete this.listeners[type]; } };
   const data = new Map();
   const storage = { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) };
   return { elements, radios, doc, win, data, storage };
@@ -126,9 +127,10 @@ test('reader restores page, changes chapter, saves progress and applies display 
     globalThis.fetch = async (url, options) => {
       requests.push({ url, options });
       if (url === '/api/progress') return { ok: true, json: async () => ({ ok: 1 }) };
-      return { ok: true, json: async () => ({ title: 'Пример', have: 2, total: 2,
+      return { ok: true, json: async () => ({ title: 'Пример', have: 2, total: 3,
         chapters: [{ id: '1', label: 'Первая', files: ['001.jpg', '002.jpg'], done: true },
-          { id: '2', label: '<Вторая>', files: ['001.jpg'], done: true }], progress: { cid: '1', page: 1 } }) };
+          { id: '2', label: '<Вторая>', files: ['001.jpg'], done: true },
+          { id: '3', label: 'Пустая', files: [], done: false }], progress: { cid: '1', page: 1 } }) };
     };
     const source = (await readFile(new URL('../ui/reader.js', import.meta.url), 'utf8'))
       .replace("'./preferences.js'", `'${dataUrl(prefSource)}'`).replace("'./reader-modes.js'", `'${modeUrl}'`).replace("'./reader-images.js'", `'${imageUrl}'`).replace("'./reader-progress.js'", `'${progressUrl}'`);
@@ -142,18 +144,33 @@ test('reader restores page, changes chapter, saves progress and applies display 
     assert.equal(f.doc.documentElement.dataset.theme, 'light');
     assert.equal(f.doc.documentElement.dataset.contrast, 'high');
     images[0].bottom = 40; images[1].bottom = 150;
-    f.win.listeners.scroll(); await new Promise(resolve => setTimeout(resolve, 750));
+    f.win.listeners.scroll();
+    let prevented = false; const unload = { preventDefault() { prevented = true; } };
+    f.win.listeners.beforeunload(unload);
+    assert.equal(prevented, true); assert.equal(unload.returnValue, true);
+    await new Promise(resolve => setTimeout(resolve, 750));
+    assert.equal(f.win.listeners.beforeunload, undefined);
     const post = requests.find(request => request.url === '/api/progress');
     assert.deepEqual(JSON.parse(post.options.body), { id: '42', cid: '1', page: 1 });
     assert.equal(post.options.headers['X-MH'], '1');
     assert.equal(f.elements.s.textContent, 'стр. 2/2');
+    const makeElement = f.doc.createElement;
+    f.doc.createElement = tag => { const el = makeElement(tag); if (tag === 'img') el.decode = () => new Promise(() => {}); return el; };
     f.elements.n.dispatch('click'); await flush();
     assert.equal(f.elements.v.children[0].textContent, 'Глава 2: <Вторая>');
     assert.equal(f.elements.v.children[0].focused, true);
-    assert.equal(f.elements['reader-announcement'].textContent, 'Глава 2 из 2');
-    assert.equal(f.elements.n.disabled, true);
+    assert.equal(f.elements['reader-announcement'].textContent, 'Глава 2 из 3');
+    assert.equal(f.elements.n.disabled, false);
     const chapterPost = requests.filter(request => request.url === '/api/progress').at(-1);
     assert.deepEqual(JSON.parse(chapterPost.options.body), { id: '42', cid: '2', page: 0 });
+    f.win.listeners.scroll();
+    f.elements.n.dispatch('click'); await flush();
+    assert.equal(f.elements.n.disabled, true);
+    assert.equal(f.elements.v.querySelectorAll('img').length, 0);
+    const posts = requests.filter(request => request.url === '/api/progress');
+    assert.equal(posts.length, 3);
+    assert.deepEqual(JSON.parse(posts.at(-1).options.body), { id: '42', cid: '2', page: 0 });
+    assert.equal(f.win.listeners.beforeunload, undefined);
   } finally {
     for (const [name, value] of Object.entries(previous)) {
       if (value === undefined) delete globalThis[name]; else globalThis[name] = value;

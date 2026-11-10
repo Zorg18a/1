@@ -56,6 +56,11 @@ def run(root):
                 save_retry = page.get_by_role('button', name='Повторить сохранение позиции')
                 expect(save_retry).to_be_visible()
                 expect(page.locator('#reader-progress-status')).to_contain_text('Запрос мог выполниться')
+                with page.expect_event('dialog') as warning:
+                    page.evaluate('setTimeout(() => location.reload(), 0)')
+                assert warning.value.type == 'beforeunload'
+                warning.value.dismiss()
+                expect(save_retry).to_be_visible()
                 page.unroute('**/api/progress')
                 save_retry.focus(); page.keyboard.press('Enter')
                 expect(save_retry).to_be_hidden()

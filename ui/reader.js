@@ -12,7 +12,10 @@ for (const key of ['theme', 'size', 'contrast']) document.documentElement.datase
 const view = $('v');
 let manga, current = 0, timer, requestNumber = 0;
 const announce = text => { $('reader-announcement').textContent = text; };
-const progress = createProgressSaver({ send: sendProgress, status: state => {
+const warnBeforeLeave = event => { event.preventDefault(); event.returnValue = true; };
+const progress = createProgressSaver({ send: sendProgress, onDirty: dirty => {
+  window[dirty ? 'addEventListener' : 'removeEventListener']('beforeunload', warnBeforeLeave);
+}, status: state => {
   const retry = $('reader-progress-retry'), message = $('reader-progress-status');
   if (state === 'unknown') {
     message.textContent = 'Не удалось подтвердить сохранение. Запрос мог выполниться; при повторе старый запрос может завершиться позже.';
@@ -22,7 +25,8 @@ const progress = createProgressSaver({ send: sendProgress, status: state => {
     if (document.activeElement === retry) view.focus({ preventScroll: true });
     retry.hidden = true;
     message.textContent = recovering ? 'Позиция сохранена.' : '';
-  } else if (!retry.hidden) message.textContent = 'Сохранение позиции…';
+  } else if (state === 'saving' && !retry.hidden) message.textContent = 'Сохранение позиции…';
+  else if (state === 'dirty' && retry.hidden) message.textContent = '';
 }});
 $('reader-progress-retry').addEventListener('click', () => progress.retry());
 
@@ -50,7 +54,7 @@ function textElement(tag, text, className = '') {
 async function openChapter(index, page = 0, focus = false) {
   const chapter = manga?.chapters[index];
   if (!chapter) return;
-  clearTimeout(timer);
+  if (timer !== undefined) { clearTimeout(timer); timer = undefined; save(); }
   const ticket = ++requestNumber;
   current = index;
   $('c').value = String(index);
@@ -88,6 +92,7 @@ async function openChapter(index, page = 0, focus = false) {
   next.disabled = index === manga.chapters.length - 1;
   next.addEventListener('click', () => changeChapter(1));
   view.append(next);
+  if (focus && images.length) progress.submit({ id, cid: chapter.id, page });
   if (images.length) {
     await Promise.all(images.slice(0, page + 1).map(image =>
       typeof image.decode === 'function' ? image.decode().catch(() => {}) : Promise.resolve()));
@@ -95,7 +100,6 @@ async function openChapter(index, page = 0, focus = false) {
   if (ticket !== requestNumber) return;
   const target = focus && page === 0 ? heading : (images[page] || heading);
   target.scrollIntoView();
-  if (focus && images.length) progress.submit({ id, cid: chapter.id, page });
 }
 
 function save() {
@@ -107,7 +111,12 @@ function save() {
   $('s').textContent = `стр. ${page + 1}/${images.length}`;
   progress.submit({ id, cid: manga.chapters[current].id, page });
 }
-window.addEventListener('scroll', () => { clearTimeout(timer); timer = setTimeout(save, 700); });
+window.addEventListener('scroll', () => {
+  if (!manga?.chapters[current] || !view.querySelectorAll('img').length) return;
+  progress.markDirty();
+  clearTimeout(timer);
+  timer = setTimeout(() => { timer = undefined; save(); }, 700);
+});
 $('c').addEventListener('change', event => openChapter(+event.target.value, 0, true));
 $('p').addEventListener('click', () => changeChapter(-1));
 $('n').addEventListener('click', () => changeChapter(1));

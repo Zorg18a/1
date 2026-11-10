@@ -1,18 +1,26 @@
 // Serializes writes from this page and keeps only the latest unsent position.
-export function createProgressSaver({ send, status }) {
-  let pending = null, active = false, blocked = false;
+export function createProgressSaver({ send, status, onDirty = () => {} }) {
+  let pending = null, active = false, blocked = false, dirty = false, revision = 0;
 
+  function markDirty() {
+    revision++;
+    if (!dirty) { dirty = true; onDirty(true); }
+    if (!blocked) status('dirty');
+  }
+  function markClean() {
+    if (dirty) { dirty = false; onDirty(false); }
+  }
   async function pump() {
     if (active || blocked || !pending) return;
-    const position = pending;
+    const { position, version } = pending;
     pending = null;
     active = true;
     status('saving');
     try {
       await send(position);
-      if (!pending) status('saved');
+      if (!pending && version === revision) { markClean(); status('saved'); }
     } catch {
-      pending = pending || position;
+      pending = pending || { position, version };
       blocked = true;
       status('unknown');
     } finally {
@@ -22,7 +30,8 @@ export function createProgressSaver({ send, status }) {
   }
 
   return {
-    submit(position) { pending = position; if (!blocked) void pump(); },
+    markDirty,
+    submit(position) { markDirty(); pending = { position, version: revision }; if (!blocked) void pump(); },
     retry() { if (blocked && !active) { blocked = false; void pump(); } },
   };
 }

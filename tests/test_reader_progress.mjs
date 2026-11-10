@@ -49,3 +49,29 @@ test('transport checks HTTP and JSON, retaining string item ids', async () => {
   }
   await assert.rejects(sendProgress({}, async () => { throw Error('offline'); }));
 });
+
+test('dirty during debounce stays dirty when an older request completes', async () => {
+  const sends = [], changes = [], statuses = [];
+  const saver = createProgressSaver({ onDirty: d => changes.push(d), status: s => statuses.push(s),
+    send: value => new Promise((resolve, reject) => sends.push({ value, resolve, reject })) });
+  saver.submit({ page: 1 });
+  saver.markDirty();
+  sends[0].resolve(); await flush();
+  assert.deepEqual(changes, [true]);
+  assert.notEqual(statuses.at(-1), 'saved');
+  saver.submit({ page: 2 });
+  sends[1].resolve(); await flush();
+  assert.deepEqual(changes, [true, false]);
+  assert.equal(statuses.at(-1), 'saved');
+});
+
+test('failure and retry keep the warning until the newest position is confirmed', async () => {
+  const sends = [], changes = [];
+  const saver = createProgressSaver({ onDirty: d => changes.push(d), status: () => {},
+    send: value => new Promise((resolve, reject) => sends.push({ value, resolve, reject })) });
+  saver.submit({ page: 1 }); sends[0].reject(Error('offline')); await flush();
+  saver.markDirty(); saver.submit({ page: 2 });
+  saver.retry(); sends[1].resolve(); await flush();
+  assert.deepEqual(changes, [true, false]);
+  assert.deepEqual(sends.map(send => send.value.page), [1, 2]);
+});
