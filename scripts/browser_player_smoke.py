@@ -79,16 +79,16 @@ def run(root):
                 page.goto(f'http://127.0.0.1:{server.server_port}/#downloads', wait_until='domcontentloaded')
                 expect(page.locator('#v-downloads')).to_be_visible()
                 expect(page.locator('#jobs')).to_contain_text('Тест')
-                dialogs = []
-                def decline(dialog):
-                    dialogs.append(dialog.message)
-                    dialog.dismiss()
-                page.once('dialog', decline)
-                page.locator('#cxl').click()
-                assert len(dialogs) == 1 and 'заданий: 1' in dialogs[0]
+                with page.expect_event('dialog') as event:
+                    page.locator('#cxl').click()
+                dialog = event.value
+                assert 'заданий: 1' in dialog.message
+                dialog.dismiss()
+                expect(page.locator('#cxl')).to_be_enabled()
                 assert not app.jobs[91]['cancel']
-                page.once('dialog', lambda dialog: dialog.accept())
-                page.locator('#cxl').click()
+                with page.expect_event('dialog') as event:
+                    page.locator('#cxl').click()
+                event.value.accept()
                 page.wait_for_function("document.querySelector('#toastBox').textContent.includes('Отмена запрошена')")
                 assert app.jobs[91]['cancel'] and app.jobs[91]['status'] == 'отменено'
                 expect(page.locator('#cxl')).to_be_focused()
