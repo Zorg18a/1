@@ -11,7 +11,9 @@
   лимита времени и durability описаны в `docs/player-reader-plan.md`.
 - Тесты используют только временные базы; локально прошли 157 Python-тестов
   (6 Windows-only пропущены), 44 Node-теста, compileall, синтаксис JS, GameSweep
-  selftest 73/73 и `git diff --check`. Windows CI ожидается.
+  selftest 73/73 и `git diff --check`. Windows CI run 42848878740 для 2c72954 прошёл
+  Python/Node, Edge smoke, сборку EXE и packaged smoke. Восстановление проверено только
+  автоматическими тестами на временных файлах, не на реальных пользовательских данных.
 
 ## UX: ясные действия в библиотеке игр
 
