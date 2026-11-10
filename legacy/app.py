@@ -6,7 +6,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from storage.database import open_database, execute
 from storage import cover_cache, cover_download, game_tags, incoming_downloads
-from core import gamelib, byte_range
+from core import gamelib, byte_range, media_outcome
 from core.classify import classify
 from core.game_sources import quick_game_request
 from core.game_tags import save_tags_request
@@ -105,7 +105,7 @@ def media(job):  # видео/аудио; плейлисты и каналы р�
         o['postprocessors'] = pps
         if float(cfg.get('limit_mb') or 0): o['ratelimit'] = int(float(cfg['limit_mb']) * 1048576 / max(1, min(st['total'], int(cfg.get('workers') or 3))))
         if cfg['skip']: o['download_archive'] = str(BASE / f"archive_{job['kind']}.txt")
-        with yt_dlp.YoutubeDL(o) as y: y.download([url])
+        with yt_dlp.YoutubeDL(o) as y: media_outcome.checked_download(y, url)
         with lk: st['done'] += 1; part.pop(tid, None); sp.pop(tid, None)
     urls = [job['url']]
     if not re.search(r'(youtube\.com/watch\?v=[\w-]+|youtu\.be/[\w-]+)$', job['url']):  # одиночное видео YouTube не проверяем: экономим запрос
@@ -113,9 +113,9 @@ def media(job):  # видео/аудио; плейлисты и каналы р�
             fo = base(); fo.update(extract_flat='in_playlist', skip_download=True)
             with yt_dlp.YoutubeDL(fo) as y: t = y.extract_info(job['url'], download=False)
             if t and t.get('_type') == 'playlist':
-                us = [e.get('url') or e.get('webpage_url') for e in (t.get('entries') or []) if e]; us = [u for u in us if u and str(u).startswith('http')]
+                us = media_outcome.playlist_urls(t, errs)
                 if len(us) > 1: urls = us
-        except Exception: pass
+        except Exception as e: errs.append(str(e) or 'не удалось проверить список элементов')
     st['total'] = len(urls)
     if len(urls) == 1: run(urls[0], 0)
     else:
@@ -123,8 +123,8 @@ def media(job):  # видео/аудио; плейлисты и каналы р�
         with ThreadPoolExecutor(max(1, int(cfg.get('workers') or 3))) as ex:
             for f in [ex.submit(run, u, k) for k, u in enumerate(urls)]:
                 try: f.result()
-                except Exception: pass
-    scan(); backfill()
+                except Exception as e: errs.append(str(e) or 'Ошибка загрузки элемента')
+    scan(); backfill(); media_outcome.mark_partial(job, n[0], errs)
     if not n[0] and not job['cancel']:
         if errs: raise RuntimeError(errs[-1])
         job['final'] = 'пропущено: уже скачано'
@@ -653,9 +653,9 @@ def settle():  # смотрим, чем закончились задания, �
             # Наличие файла не доказывает, что вся загрузка завершилась успешно.
             sts = ['ошибка: результат неизвестен после перезапуска, проверьте библиотеку']
         if any(re.match(r'(качается|в очереди|запл)', s) for s in sts): continue
-        bad = next((s for s in sts if s.startswith('сохранено частично') or not s.startswith(('готово', 'сохранено', 'пропущено'))), '')
+        bad = next((s for s in sts if s.startswith('сохранено частично') or not s.startswith(('готово', 'сохранено'))), '')
         if not bad: finish_row(r['id'], r['close_tab']); continue
-        low = bad.lower(); why = ('нужен вход на сайте' if re.search(r'login|sign in|private|authent|cookies|членам|вход', low) else 'скачано частично' if bad.startswith(('частично', 'сохранено частично')) else 'загрузка отменена' if bad.startswith('отменено') else 'не удалось скачать (' + bad.replace('ошибка:', '').strip()[:120] + ')')
+        low = bad.lower(); why = ('нужен вход на сайте' if re.search(r'login|sign in|private|authent|cookies|членам|вход', low) else 'скачано частично' if bad.startswith(('частично', 'сохранено частично')) else 'загрузка отменена' if bad.startswith('отменено') else 'загрузка пропущена, проверьте библиотеку' if bad.startswith('пропущено') else 'не удалось скачать (' + bad.replace('ошибка:', '').strip()[:120] + ')')
         sql("update inbox set status='kept', reason=? where id=?", (why, r['id']))
 def settle_loop():
     while True:

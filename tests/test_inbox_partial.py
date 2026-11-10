@@ -37,6 +37,7 @@ try:
     cases = [('частично: 2 из 3', 'kept', ''),
              ('сохранено частично: достигнут лимит', 'kept', ''),
              ('ошибка: сеть', 'kept', ''), ('отменено', 'kept', ''),
+             ('пропущено: уже скачано', 'kept', ''),
              ('готово', 'closing', 'close'), ('сохранено', 'closing', 'close')]
     for i, (status, expected, command) in enumerate(cases):
         batch, _ = app.inbox_add([{'id': i, 'url': 'https://example.org/' + str(i)}], True, 'test')
