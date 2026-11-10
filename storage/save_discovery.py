@@ -51,18 +51,19 @@ def _game_folder(root, game):
     return game
 
 
-def discover_saves(root, game):
+def discover_saves(root, game, *, include_identity=False):
     if not _LIMIT.acquire(blocking=False):
         raise DiscoveryBusy('Другой поиск сохранений уже выполняется')
     try:
-        return _discover(root, game)
+        return _discover(root, game, include_identity)
     finally:
         _LIMIT.release()
 
 
-def _discover(root, game):
+def _discover(root, game, include_identity=False):
     top = _game_folder(root, game)
-    stack = [(top, 0, stat_identity(os.stat(top, follow_symlinks=False)))]
+    top_identity = stat_identity(os.stat(top, follow_symlinks=False))
+    stack = [(top, 0, top_identity)]
     found, scanned, skipped, incomplete = [], 0, 0, False
     deadline = time.monotonic() + MAX_SECONDS
     while stack:
@@ -96,13 +97,15 @@ def _discover(root, game):
                         incomplete, skipped = True, skipped + 1
                     elif stat.S_ISDIR(info.st_mode):
                         if entry.name.casefold() in _SAVE_DIRS:
-                            found.append({'path': os.path.relpath(entry.path, top), 'kind': 'directory'})
+                            found.append({'path': os.path.relpath(entry.path, top), 'kind': 'directory',
+                                          **({'identity': stat_identity(info)} if include_identity else {})})
                         elif depth < MAX_DEPTH:
                             stack.append((Path(entry.path), depth + 1, stat_identity(info)))
                         else:
                             incomplete = True
                     elif stat.S_ISREG(info.st_mode) and _SAVE_FILE.search(entry.name):
-                        found.append({'path': os.path.relpath(entry.path, top), 'kind': 'file'})
+                        found.append({'path': os.path.relpath(entry.path, top), 'kind': 'file',
+                                      **({'identity': stat_identity(info)} if include_identity else {})})
                     elif not stat.S_ISREG(info.st_mode):
                         incomplete, skipped = True, skipped + 1
             after = os.stat(folder, follow_symlinks=False)
@@ -112,4 +115,5 @@ def _discover(root, game):
             incomplete, skipped = True, skipped + 1
     found.sort(key=lambda item: (item['path'].casefold(), item['path']))
     return {'game_folder': str(top), 'candidates': found, 'scanned': scanned,
-            'incomplete': incomplete, 'skipped': skipped}
+            'incomplete': incomplete, 'skipped': skipped,
+            **({'_top_identity': top_identity} if include_identity else {})}

@@ -46,6 +46,16 @@ try:
     status, result = request({'id': item_id, 'mode': 'saves'})
     assert status == 200 and result['save_preview']['candidates'] == [{'path': 'save.sav', 'kind': 'file'}], (status, result)
     assert not incoming.exists() and (game / 'save.sav').read_bytes() == b'old save'
+    (game / 'saves' / 'nested').mkdir(parents=True)
+    (game / 'saves' / 'nested' / 'slot.bin').write_bytes(b'fixture')
+    assert request({'id': item_id, 'mode': 'save_inventory'}, False)[0] == 403
+    assert request({'id': item_id, 'mode': 'save_inventory', 'path': str(base)})[0] == 400
+    status, result = request({'id': item_id, 'mode': 'save_inventory'})
+    assert status == 200, (status, result)
+    files = {f['path'].replace('\\', '/'): f['size_bytes'] for f in result['save_inventory']['files']}
+    assert files == {'save.sav': '8', 'saves/nested/slot.bin': '7'}, files
+    assert result['save_inventory']['total_bytes'] == '15' and not result['save_inventory']['incomplete']
+    assert not incoming.exists() and (game / 'saves' / 'nested' / 'slot.bin').read_bytes() == b'fixture'
     status, result = request({'id': item_id})
     assert status == 200 and incoming.is_dir() and not result['candidates']
     assert result['installed_path'] == str(game) and result['installed_version'] == '1.0'

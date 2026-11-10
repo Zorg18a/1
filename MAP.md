@@ -57,6 +57,7 @@
 - `storage/zip_inspection.py` — ограниченное чтение центрального каталога ZIP и проверка идентичности.
 - `storage/zip_content.py` — ограниченная потоковая проверка локальных заголовков и CRC без записи файлов.
 - `storage/save_discovery.py` — ограниченный поиск возможных сохранений по именам в папке игры.
+- `storage/save_inventory.py` — ограниченный просмотр метаданных файлов в найденных расположениях.
 - `tests/test_classify.py` — проверки классификации ссылок и канонических ключей.
 - `tests/test_quick_game.py` — валидация, авторизация и тест карточки игры через HTTP.
 - `tests/test_quick_game.mjs` — тесты обеих копий кнопки и обработки ошибок.
@@ -71,6 +72,7 @@
 - `tests/test_zip_inspection.py` — реальные ZIP, повреждения структуры и изменение файла.
 - `tests/test_zip_content.py` — stored/deflate, дескрипторы, повреждения, лимиты и изменение файла.
 - `tests/test_save_discovery.py` — подсказки сохранений, ограничения, ссылки и гонки.
+- `tests/test_save_inventory.py`, `tests/test_save_inventory.mjs` — просмотр состава сохранений, ограничения и интерфейс.
 - `tests/test_save_compare.py`, `tests/test_save_compare_request.py`, `tests/test_save_compare_http.py`, `tests/test_save_compare.mjs` — сравнение путей, изоляция, API и интерфейс.
 - `tests/test_zip_inspection_http.py` — изолированная проверка ZIP через HTTP.
 - `tests/test_game_tags.py` — проверки валидации, сохранения и отката тегов.
@@ -86,6 +88,7 @@
 - `ui/game-library.js` — игровые метки, сортировка и фильтр по размеру.
 - `ui/game-tags.js` — доступная форма редактирования тегов карточки.
 - `ui/game-update-preview.js` — поиск возможных архивов из карточки игры.
+- `ui/save-inventory.js` — кнопка и безопасное отображение списка возможных файлов сохранений.
 - `ui/preferences.js` — настройки отображения и клавиш в localStorage.
 - `ui/notifications.js` — журнал событий сессии и уведомления на 8 секунд.
 - `ui/job-events.js` — обнаружение завершения заданий по данным API.

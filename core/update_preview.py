@@ -19,7 +19,7 @@ def preview_request(data, lookup, game_view, parse_name, download_folder, games_
     if game is None:
         return {'error': 'Игра не найдена'}, 404
     if 'mode' in data:
-        if data['mode'] != 'saves':
+        if data['mode'] not in ('saves', 'save_inventory'):
             return {'error': 'Неизвестный режим просмотра'}, 400
         return save_preview_request(data, game, game_view, games_root)
     try:

@@ -16,7 +16,7 @@ server = ThreadingHTTPServer(('127.0.0.1', 0), app.H)
 thread = threading.Thread(target=server.serve_forever)
 thread.start()
 try:
-    for path in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/game-library.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/accessibility.css'):
+    for path in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/game-library.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css'):
         conn = http.client.HTTPConnection('127.0.0.1', server.server_port)
         conn.request('GET', path)
         response = conn.getresponse()

@@ -5,6 +5,7 @@ import { setupJobEvents } from './job-events.js';
 import { setupGameLibrary } from './game-library.js';
 import { setupGameTags } from './game-tags.js';
 import { setupUpdatePreview } from './game-update-preview.js';
+import { setupSaveInventory } from './save-inventory.js';
 
 const preferences = setupPreferences();
 setupNotifications();
@@ -12,4 +13,5 @@ setupJobEvents();
 setupHotkeys(preferences);
 setupGameTags();
 setupUpdatePreview();
+setupSaveInventory();
 setupGameLibrary();
