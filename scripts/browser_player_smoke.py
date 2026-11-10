@@ -26,7 +26,7 @@ def run(root):
     (root / 'sample.en.srt').write_text(
         '1\n00:00:00,000 --> 00:00:02,000\nHello from subtitles\n', encoding='utf8')
     app.sql("insert into items(id,title,author,topic,kind,path,url) "
-            "values(1,'Видео','','','video',?,'test')", (str(media),))
+            "values(1,'Видео','','','video',?,'test'),(2,'Игра','','','game','','game:test')", (str(media),))
     server = ThreadingHTTPServer(('127.0.0.1', 0), app.H)
     thread = threading.Thread(target=server.serve_forever)
     thread.start()
@@ -34,8 +34,23 @@ def run(root):
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(channel='msedge', headless=True)
             try:
-                page = browser.new_page()
+                page = browser.new_page(viewport={'width': 320, 'height': 800})
                 page.goto(f'http://127.0.0.1:{server.server_port}/', wait_until='domcontentloaded')
+                expect(page.locator('.grid.wide .c').first).to_be_visible()
+                for name in ('Библиотека', 'Входящие', 'Загрузки', 'Игры', 'Настройки'):
+                    expect(page.get_by_role('navigation').get_by_role('link', name=name)).to_be_visible()
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Library overflows 320px'
+                games = page.get_by_role('navigation').get_by_role('link', name='Игры')
+                games.focus(); page.keyboard.press('Enter')
+                expect(page.locator('#v-games')).to_be_visible()
+                expect(page.locator('.gcard')).to_be_visible()
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Games overflow 320px'
+                page.locator('.gcard').focus(); page.keyboard.press('Enter')
+                expect(page.locator('#gpanel')).to_have_attribute('aria-hidden', 'false')
+                page.wait_for_function("""() => { const r = document.querySelector('#gpanel').getBoundingClientRect();
+                    return r.left >= 0 && r.right <= innerWidth + 1; }""")
+                page.locator('#gclose').click()
+                page.get_by_role('navigation').get_by_role('link', name='Библиотека').click()
                 page.get_by_role('link', name='Предпросмотр плеера без сохранения позиции: Видео').click()
                 expect(page.locator('#player-title')).to_have_text('Видео')
                 expect(page.locator('.notice')).to_contain_text('позиция воспроизведения пока не сохраняется')

@@ -17,6 +17,8 @@
 - `core/reader_progress.py` — валидация данных будущей timestamped записи прогресса манги.
 - `docs/2026-11-10-mediahub-player-reader-design.md` — приложенная спецификация на проверке.
 - `docs/player-reader-plan.md` — аудит реализации и поэтапный план плеера/читалки.
+- `docs/ux-improvement-plan.md` — полный план UX-аудита и приоритеты личного Windows-приложения.
+- `tests/test_navigation_ux.py` — имена и подсказки навигации в узком окне.
 - `core/game_sources.py` — валидация игровых тем и подготовка задания для расширения.
 - `core/game_tags.py` — проверка тегов и обработка запроса на их сохранение.
 - `core/update_preview.py` — подбор возможных архивов по имени без установки.
