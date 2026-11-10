@@ -79,7 +79,9 @@
   обнуляет timestamp через `insert or replace`. Writer не проверяет манифест и совместимость
   более строгих правил со всеми старыми данными; в приложении ничего не переключено.
   Linux: 142 Python-теста (6 Windows-only пропущены), 31 Node-тест, compileall,
-  синтаксис и импорты, source smoke и GameSweep 73/73 прошли. Windows CI ожидается.
+  синтаксис и импорты, source smoke и GameSweep 73/73 прошли. Windows CI run
+  42805774316 для 45935ae: тесты, сборка EXE и packaged smoke прошли; ручные проверки
+  браузера и Windows не выполнялись.
 
 ## Исходное состояние
 
