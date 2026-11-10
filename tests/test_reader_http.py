@@ -41,6 +41,7 @@ try:
     data = json.loads(payload)
     assert status == 200 and data['chapters'][0]['files'] == ['001.png'] and data['progress'] is None
     assert request('GET', '/mi/1/12/001.png') == (200, b'PNG test page')
+    assert request('GET', '/mi/1/12/001.png?retry=1-1') == (200, b'PNG test page')
     body = json.dumps({'id':1, 'cid':'12', 'page':0})
     assert request('POST', '/api/progress', body)[0] == 403
     assert request('POST', '/api/progress', body, {'X-MH':'1'})[0] == 200

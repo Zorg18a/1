@@ -24,6 +24,10 @@ jobs:
         env:
           PYTHONUTF8: '1'
         run: python -m scripts.browser_player_smoke
+      - name: Check reader in headless Edge
+        env:
+          PYTHONUTF8: '1'
+        run: python -m scripts.browser_reader_smoke
       - name: Build executable
         run: >-
           python -m PyInstaller --noconfirm --clean --onedir --name MediaHub

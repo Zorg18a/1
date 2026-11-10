@@ -605,7 +605,7 @@ def new_job(url, kind, **kw):
     j = {'id': next(ids), 'url': url, 'kind': kind, 'res': cfg['res'], 'afmt': cfg['afmt'], 'depth': int(cfg['depth']), 'maxp': int(cfg['maxp']), 'videos': bool(cfg['videos']), 'sel': [], 'first': 0, 'last': 0,
          'topic': '', 'subs': cfg['subs_langs'] if cfg['subs_on'] else '', 'thumbs': bool(cfg['thumbs']), 'start_at': 0.0, 'daily': False, 'status': 'в очереди', 'pct': 0, 'title': url, 'speed': 0, 'eta': 0, 'cancel': False}
     j.update(kw); enqueue(j); return j['id']
-def add_link(title, key, src, host, tracked=0):  # источник сохраняется в любом случае, даже если скачивание не выбрано
+def add_link(title, key, src, host, tracked=0):  # сохраняем источник
     sql("insert into items(title,author,topic,kind,path,root,url,size,thumb,src,tracked) values(?,?,?,?,?,?,?,?,?,?,?) on conflict(url) do update set src=excluded.src, tracked=max(coalesce(items.tracked,0), excluded.tracked)",
         (title or key, host, 'Ссылки', 'link', '', '', key, 0, '', src, tracked))
 def inbox_add(tabs, close, browser):
@@ -944,7 +944,7 @@ class H(BaseHTTPRequestHandler):
     def get(self):
         u = urlparse(self.path); p = unquote(u.path); qs = {k: v[0] for k, v in parse_qs(u.query).items()}
         if p.startswith(('/sub/', '/api/subtitles/', '/api/player-preview/')): return player_preview.get(self, p, sql) if p.startswith('/api/player-preview/') else media_subtitles.get(self, p, sql)
-        if p == '/' or p in ('/ui/app.js', '/ui/inbox-submit.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/cancel-all.js', '/ui/delete-dialog.js', '/ui/game-library.js', '/ui/library-view.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js', '/ui/player-keys.js', '/ui/player-subtitles.js', '/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
+        if p == '/' or p in ('/ui/app.js', '/ui/inbox-submit.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/cancel-all.js', '/ui/delete-dialog.js', '/ui/game-library.js', '/ui/library-view.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-images.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js', '/ui/player-keys.js', '/ui/player-subtitles.js', '/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
         if p == '/api/jobs':
             now = time.time(); keys = ('id', 'url', 'kind', 'status', 'pct', 'title', 'eta', 'daily', 'start_at')
             return self.js([dict({k: j.get(k) for k in keys}, speed=(j.get('speed') or 0) if now - j.get('_ts', now) < 8 else 0) for j in jobs.values()])

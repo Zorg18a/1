@@ -8,6 +8,9 @@ const modeSource = (await readFile(new URL('../ui/reader-modes.js', import.meta.
   .replace("'./preferences.js'", `'${dataUrl(prefSource)}'`);
 const modeUrl = dataUrl(modeSource);
 const modes = await import(modeUrl);
+const imageSource = await readFile(new URL('../ui/reader-images.js', import.meta.url), 'utf8');
+const imageUrl = dataUrl(imageSource);
+const { setupReaderImage } = await import(imageUrl);
 
 class Element {
   constructor(tag = 'div') {
@@ -16,8 +19,9 @@ class Element {
     this.value = ''; this.textContent = ''; this.hidden = false; this.open = false;
     this.scrollWidth = 400; this.clientWidth = 400; this.bottom = 100;
   }
-  addEventListener(type, handler) { this.listeners[type] = handler; }
-  dispatch(type, event = {}) { return this.listeners[type]?.({ target: this, ...event }); }
+  addEventListener(type, handler) { (this.listeners[type] ??= []).push(handler); }
+  dispatch(type, event = {}) { for (const handler of this.listeners[type] || []) handler({ target: this, ...event }); }
+  setAttribute(name, value) { this[name] = value; }
   append(...elements) { this.children.push(...elements); }
   replaceChildren(...elements) { this.children = elements; }
   querySelectorAll(selector) { return selector === 'img' ? this.children.filter(child => child.tagName === 'IMG') : []; }
@@ -49,6 +53,31 @@ function key(win, value, target = new Element('div'), modifiers = {}) {
   return prevented;
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
+
+test('a failed page offers a keyboard-accessible retry and returns focus on success', () => {
+  const doc = { createElement: tag => new Element(tag), activeElement: null };
+  const image = new Element('img');
+  const panel = setupReaderImage({ doc, image, number: 2, src: '/mi/1/2/002.png' });
+  const [message, retry] = panel.children;
+  assert.equal(panel.hidden, true);
+  assert.equal(message.role, 'status');
+  image.dispatch('error');
+  assert.equal(panel.hidden, false);
+  assert.match(message.textContent, /страницу 2/);
+  assert.equal(retry.textContent, 'Повторить загрузку страницы 2');
+  doc.activeElement = retry;
+  retry.dispatch('click');
+  assert.match(image.src, /^\/mi\/1\/2\/002\.png\?retry=\d+-1$/);
+  assert.match(message.textContent, /Повторная загрузка/);
+  image.dispatch('error');
+  assert.equal(panel.hidden, false);
+  retry.dispatch('click');
+  image.dispatch('load');
+  assert.equal(panel.hidden, true);
+  assert.equal(message.textContent, '');
+  assert.equal(image.focused, true);
+  assert.equal(image.tabIndex, -1);
+});
 
 test('reader preferences clamp, validate and survive blocked storage', () => {
   assert.deepEqual(modes.normalizeReaderPrefs({ fit: 'bad', zoom: NaN }), { fit: 'width', zoom: 100 });
@@ -100,7 +129,7 @@ test('reader restores page, changes chapter, saves progress and applies display 
           { id: '2', label: '<Вторая>', files: ['001.jpg'], done: true }], progress: { cid: '1', page: 1 } }) };
     };
     const source = (await readFile(new URL('../ui/reader.js', import.meta.url), 'utf8'))
-      .replace("'./preferences.js'", `'${dataUrl(prefSource)}'`).replace("'./reader-modes.js'", `'${modeUrl}'`);
+      .replace("'./preferences.js'", `'${dataUrl(prefSource)}'`).replace("'./reader-modes.js'", `'${modeUrl}'`).replace("'./reader-images.js'", `'${imageUrl}'`);
     await import(dataUrl(source)); await flush(); await flush();
     const images = f.elements.v.querySelectorAll('img');
     assert.equal(images.length, 2);
@@ -136,9 +165,9 @@ test('reader reports a failed manga request without creating pages', async () =>
     globalThis.location = { pathname: '/m/404' };
     globalThis.fetch = async () => ({ ok: false, json: async () => ({ error: 'not found' }) });
     const source = (await readFile(new URL('../ui/reader.js', import.meta.url), 'utf8'))
-      .replace("'./preferences.js'", `'${dataUrl(prefSource)}'`).replace("'./reader-modes.js'", `'${modeUrl}'`);
+      .replace("'./preferences.js'", `'${dataUrl(prefSource)}'`).replace("'./reader-modes.js'", `'${modeUrl}'`).replace("'./reader-images.js'", `'${imageUrl}'`);
     await import(dataUrl(source + '\n// failed request')); await flush();
-    assert.equal(f.elements['reader-error'].textContent, 'Не удалось открыть тайтл');
+    assert.match(f.elements['reader-error'].textContent, /Не удалось открыть тайтл.*обновите страницу/);
     assert.equal(f.elements.v.querySelectorAll('img').length, 0);
   } finally {
     for (const [name, value] of Object.entries(previous)) {

@@ -1,5 +1,6 @@
 import { readPreferences } from './preferences.js';
 import { setupReaderModes } from './reader-modes.js';
+import { setupReaderImage } from './reader-images.js';
 
 const $ = id => document.getElementById(id);
 const id = location.pathname.split('/')[2];
@@ -58,8 +59,10 @@ async function openChapter(index, page = 0, focus = false) {
     image.addEventListener('load', () => {
       if (image.naturalWidth) image.style.setProperty('--natural-width', `${image.naturalWidth}px`);
     });
-    image.src = `/mi/${encodeURIComponent(id)}/${encodeURIComponent(chapter.id)}/${encodeURIComponent(file)}`;
-    view.append(image);
+    const src = `/mi/${encodeURIComponent(id)}/${encodeURIComponent(chapter.id)}/${encodeURIComponent(file)}`;
+    const error = setupReaderImage({ doc: document, image, number: number + 1, src });
+    view.append(image, error);
+    image.src = src;
     return image;
   });
   const message = files.length
@@ -90,7 +93,7 @@ function save() {
   fetch('/api/progress', { method: 'POST', headers: { 'X-MH': '1', 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: +id, cid: manga.chapters[current].id, page }) })
     .then(response => { if (!response.ok) throw new Error('progress'); $('reader-error').textContent = ''; })
-    .catch(() => { $('reader-error').textContent = 'Не удалось сохранить страницу'; });
+    .catch(() => { $('reader-error').textContent = 'Не удалось сохранить позицию. Проверьте подключение к MediaHub и прокрутите страницу, чтобы повторить.'; });
 }
 window.addEventListener('scroll', () => { clearTimeout(timer); timer = setTimeout(save, 700); });
 $('c').addEventListener('change', event => openChapter(+event.target.value, 0, true));
@@ -118,7 +121,7 @@ async function load() {
     }
     await openChapter(Math.max(0, index), page);
   } catch {
-    $('reader-error').textContent = 'Не удалось открыть тайтл';
+    $('reader-error').textContent = 'Не удалось открыть тайтл. Проверьте наличие файлов и подключение к MediaHub, затем обновите страницу.';
   }
 }
 load();

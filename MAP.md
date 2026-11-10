@@ -24,6 +24,8 @@
 - `core/subtitle_rules.py` — проверка имён, языка и преобразование SRT/WebVTT.
 - `core/playback.py` — изолированные правила и валидация позиции медиа.
 - `core/reader_progress.py` — валидация данных будущей timestamped записи прогресса манги.
+- `ui/reader-images.js` — сообщения об ошибках загрузки страниц и ручной повтор.
+- `scripts/browser_reader_smoke.py` — Edge-проверка читалки и повтора на временной манге.
 - `docs/2026-11-10-mediahub-player-reader-design.md` — приложенная спецификация на проверке.
 - `docs/player-reader-plan.md` — аудит реализации и поэтапный план плеера/читалки.
 - `docs/ux-improvement-plan.md` — полный план UX-аудита и приоритеты личного Windows-приложения.
