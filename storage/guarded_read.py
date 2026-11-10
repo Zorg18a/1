@@ -113,6 +113,9 @@ class GuardedFile:
             raise GuardedReadError('Размер чтения должен быть от 0 до 1 МиБ')
         return self._stream.read(size)
 
+    def stat(self):
+        return os.fstat(self._stream.fileno())
+
     def close(self):
         try:
             self._stream.close()

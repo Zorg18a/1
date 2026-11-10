@@ -57,6 +57,8 @@ def check(process):
     assert get(8765, '/ui/reader.css')[0] == 200
     status, body = get(8765, '/api/library')
     assert status == 200 and json.loads(body) == []
+    status, body = get(8765, '/api/subtitles/999')
+    assert status == 404 and 'error' in json.loads(body)
     status, result = post('/api/add', {'urls': 'https://example.invalid/test', 'kind': 'video',
                                        'start_at': time.time() + 3600})
     assert status == 200 and result['added'] == 1

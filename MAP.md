@@ -12,6 +12,7 @@
 - `core/__init__.py` — Пакет бизнес-логики.
 - `core/classify.py` — классификация ссылок и нормализация ключей без сетевых запросов.
 - `core/byte_range.py` — правила одиночного HTTP Byte Range и ответов на неразрешимые диапазоны.
+- `core/subtitle_rules.py` — проверка имён, языка и преобразование SRT/WebVTT.
 - `core/playback.py` — изолированные правила и валидация позиции медиа.
 - `docs/2026-11-10-mediahub-player-reader-design.md` — приложенная спецификация на проверке.
 - `docs/player-reader-plan.md` — аудит реализации и поэтапный план плеера/читалки.
@@ -49,12 +50,14 @@
 - `legacy/README-original.md` — Историческое описание архива; пути могут устареть.
 - `legacy/__init__.py` — Пакет совместимости исходного приложения.
 - `legacy/app.py` — Исходный сервер MediaHub, очередь и большая часть логики; техдолг.
+- `legacy/media_subtitles.py` — HTTP-эндпоинты дорожек субтитров для локальной библиотеки.
 - `legacy/gamesweep.py` — Исходный GameSweep, включая встроенный UI и selftest; техдолг.
 - `requirements.txt` — Зависимости приложения.
 - `start.bat` — Установка зависимостей и запуск на Windows.
 - `storage/__init__.py` — Пакет хранения данных.
 - `storage/database.py` — Подключение SQLite, начальная миграция и транзакции.
 - `storage/playback.py` — изолированная миграция и хранение позиций, к приложению не подключено.
+- `storage/subtitles.py` — ограниченный поиск и защищённое чтение файлов субтитров.
 - `storage/playback_migration.py` — экспериментальный backup-first координатор миграции; к приложению не подключён.
 - `storage/startup_schema.py` — изолированная объединённая схема и read-only проверка необходимости миграции.
 - `storage/game_tags.py` — атомарное хранение тегов и очистка при удалении карточки.
@@ -69,6 +72,7 @@
 - `storage/windows_relative.py` — низкоуровневое открытие одного компонента относительно Windows-дескриптора.
 - `tests/test_classify.py` — проверки классификации ссылок и канонических ключей.
 - `tests/test_byte_range.py`, `tests/test_http_range.py` — правила и HTTP-тесты диапазонов файлов на временных данных.
+- `tests/test_subtitle_rules.py`, `tests/test_subtitles.py`, `tests/test_subtitles_http.py` — имена, кодировки, защищённое чтение и HTTP субтитров.
 - `tests/test_quick_game.py` — валидация, авторизация и тест карточки игры через HTTP.
 - `tests/test_quick_game.mjs` — тесты обеих копий кнопки и обработки ошибок.
 - `tests/test_core.py` — Тесты парсера игр и группировки версий.

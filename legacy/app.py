@@ -13,7 +13,7 @@ from core.game_tags import save_tags_request
 from core.update_preview import preview_request
 from core.update_inspect import inspect_request
 from core.job_queue import JobQueue
-from legacy import gamesweep
+from legacy import gamesweep, media_subtitles
 mimetypes.add_type('image/avif', '.avif'); mimetypes.add_type('text/javascript', '.js')
 BASE = Path(os.environ.get('MEDIAHUB_DATA_DIR') or (Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent.parent))
 BASE.mkdir(parents=True, exist_ok=True)
@@ -587,7 +587,6 @@ enqueue, fire = scheduler.enqueue, scheduler.fire
 def spawn_workers():
     cfg['workers'] = max(1, min(12, int(cfg.get('workers') or 3)))
     scheduler.spawn_workers(cfg['workers'])
-
 # ---------- расширение браузера: входящие вкладки ----------
 for c_ in ('src', 'tracked int default 0', 'checked', 'info'):
     try: db.execute('alter table items add column ' + c_)
@@ -944,6 +943,7 @@ class H(BaseHTTPRequestHandler):
         except Exception as e: self.js({'error': str(e)}, 500)
     def get(self):
         u = urlparse(self.path); p = unquote(u.path); qs = {k: v[0] for k, v in parse_qs(u.query).items()}
+        if p.startswith(('/sub/', '/api/subtitles/')): return media_subtitles.get(self, p, sql)
         if p == '/' or p in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/game-library.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-modes.js', '/ui/reader.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
         if p == '/api/jobs':
             now = time.time(); keys = ('id', 'url', 'kind', 'status', 'pct', 'title', 'eta', 'daily', 'start_at')
