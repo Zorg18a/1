@@ -33,6 +33,7 @@ expected = {'title': 'Video', 'kind': 'video', 'path': str(video), 'root': ''}
 try:
     assert post({'id': 1, 'files': True})[0] == 400
     assert post({'id': 1, 'files': True, 'expected': dict(expected, path='outdated')})[0] == 409
+    assert post({'id': 1, 'files': False, 'expected': dict(expected, title='outdated')})[0] == 409
     assert video.exists() and side.exists() and app.sql('select id from items where id=1')
     def partial(row):
         video.unlink()
