@@ -5,7 +5,7 @@ steps and adds playback storage without silently ignoring incompatible schemas.
 """
 import sqlite3
 
-from storage import database, playback
+from storage import database, playback, schema_validation
 
 _ITEM_ADDITIONS = ('thumb', 'src', 'tracked int default 0', 'checked', 'info')
 _INBOX_COLUMNS = frozenset(('id', 'batch', 'tab_id', 'window_id', 'url', 'title', 'kind',
@@ -47,6 +47,7 @@ def requires_migration(db):
     if ' '.join(triggers['delete_game_tags'].lower().split()) != _TAG_TRIGGER:
         raise sqlite3.DatabaseError('Несовместимый триггер game_tags; миграция отменена')
     playback.validate_schema(db)
+    schema_validation.validate(db)
     return False
 
 
@@ -66,3 +67,4 @@ def initialize(db):
     db.execute("create table if not exists inbox(id integer primary key, batch text, tab_id int, window_id int, url text, title text, kind text, host text, action text, state text, lib_id int, close_tab int, status text, reason text default '', jobs text default '[]', cmd text default '', created text default current_timestamp)")
     _require(db, 'inbox', _INBOX_COLUMNS)
     playback.initialize(db)
+    schema_validation.validate(db)
