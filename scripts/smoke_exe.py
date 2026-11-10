@@ -44,10 +44,29 @@ def check(process):
         time.sleep(0.5)
     else:
         raise RuntimeError('MediaHub did not start on port 8765')
+    assert 'Предпросмотр плеера'.encode('utf-8') in html
     assert get(8765, '/', 'example.invalid')[0] == 403
     assert get(8765, '/m/1')[0] == 200
+    assert get(8765, '/ui/app.js')[0] == 200
+    assert get(8765, '/ui/game-library.js')[0] == 200
+    assert get(8765, '/ui/game-tags.js')[0] == 200
+    assert get(8765, '/ui/game-update-preview.js')[0] == 200
+    assert get(8765, '/ui/save-inventory.js')[0] == 200
+    assert get(8765, '/ui/accessibility.css')[0] == 200
+    assert get(8765, '/ui/reader.js')[0] == 200
+    assert get(8765, '/ui/reader-modes.js')[0] == 200
+    assert get(8765, '/ui/reader.css')[0] == 200
+    assert get(8765, '/p/1')[0] == 200
+    assert get(8765, '/ui/player.js')[0] == 200
+    assert get(8765, '/ui/player-keys.js')[0] == 200
+    assert get(8765, '/ui/player-subtitles.js')[0] == 200
+    assert get(8765, '/ui/player.css')[0] == 200
     status, body = get(8765, '/api/library')
     assert status == 200 and json.loads(body) == []
+    status, body = get(8765, '/api/subtitles/999')
+    assert status == 404 and 'error' in json.loads(body)
+    status, body = get(8765, '/api/player-preview/999')
+    assert status == 404 and 'error' in json.loads(body)
     status, result = post('/api/add', {'urls': 'https://example.invalid/test', 'kind': 'video',
                                        'start_at': time.time() + 3600})
     assert status == 200 and result['added'] == 1

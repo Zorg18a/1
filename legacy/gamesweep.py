@@ -23,6 +23,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+if not __package__: sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from storage import game_scan
+
 APP, VERSION = "GameSweep", "1.1"
 IS_WIN = os.name == "nt"
 
@@ -30,69 +33,8 @@ IS_WIN = os.name == "nt"
 #  1. Что считается игрой (SPEC §2)
 # ===========================================================================
 ARCH = (".zip", ".rar", ".7z", ".tar", ".gz", ".tgz")
-CATEGORY = re.compile(r"^(new|n|part|batch|vol)[ _-]?\d+$", re.I)
-SKIP = {"$recycle.bin", "system volume information"}
-
-
-def _skipped(name: str) -> bool:
-    low = name.lower()
-    return name.startswith(".") or low.startswith("_gamesweep") or low in SKIP
-
-
-def _tree_stats(top: str) -> tuple[int, float]:
-    """(сумма размеров, самый свежий mtime) папки, без обхода ссылок на папки."""
-    total, newest, stack = 0, 0.0, [top]
-    while stack:
-        try:
-            it = os.scandir(stack.pop())
-        except OSError:
-            continue
-        with it:
-            for e in it:
-                try:
-                    if e.is_dir():
-                        if not e.is_symlink():
-                            stack.append(e.path)
-                        continue
-                    st = e.stat(follow_symlinks=False)
-                    total += st.st_size
-                    newest = max(newest, st.st_mtime)
-                except OSError:
-                    continue
-    return total, newest
-
-
-def list_games(root: str, layout: str = "auto") -> list[dict]:
-    """Папки и архивы библиотеки (без размеров — их считает scan_library параллельно)."""
-    out: list[dict] = []
-
-    def add(e, is_dir):
-        out.append({"name": e.name, "path": e.path, "type": "folder" if is_dir else "archive"})
-
-    def visit(path, can_expand):
-        try:
-            it = os.scandir(path)
-        except OSError:
-            return
-        with it:
-            for e in sorted(it, key=lambda x: x.name.lower()):
-                if _skipped(e.name):
-                    continue
-                try:
-                    is_dir = e.is_dir()
-                except OSError:
-                    continue
-                if is_dir:
-                    category = layout == "nested" or (layout == "auto" and CATEGORY.match(e.name))
-                    if can_expand and category:
-                        visit(e.path, False)
-                    else:
-                        add(e, True)
-                elif e.name.lower().endswith(ARCH):
-                    add(e, False)
-
-    visit(root, True)
-    return out
+_tree_stats = game_scan.tree_stats
+list_games = game_scan.list_games
 
 
 def scan_library(root: str, layout: str = "auto", progress=None, workers: int = 4) -> list[dict]:
@@ -755,7 +697,7 @@ class Handler(BaseHTTPRequestHandler):
             root = str(body.get("root") or "").strip()
             if not os.path.isdir(root):
                 return self._send(400, json.dumps({"error": f"Папка не найдена: {root}"}, ensure_ascii=False))
-            layout = body.get("layout") if body.get("layout") in ("auto", "flat", "nested") else "auto"
+            layout = body.get("layout") if body.get("layout") in game_scan.LAYOUTS else "auto"
             return self._send(200, json.dumps({"started": srv.store.start_scan(root, layout)}))
         if path == "/api/saves":
             with srv.store.lock:
@@ -844,9 +786,9 @@ nav{display:flex;gap:4px;margin-right:8px}.nav{background:transparent;border-rad
 </style></head><body>
 <header class="top"><h1>🧹 GameSweep</h1><nav><button class="nav on" data-v="v">Версии</button><button class="nav" data-v="t">Вкладки</button></nav>
 <input type="text" id="root" placeholder="Папка с играми, например G:\PG">
-<select id="layout" title="Структура библиотеки"><option value="auto">Структура: авто</option><option value="flat">Все папки — игры</option><option value="nested">Все папки — категории</option></select>
+<select id="layout" aria-label="Структура папок игр"><option value="auto">Авто (new1 и т. п.)</option><option value="flat">Корень → игра</option><option value="nested">Корень → категория → игра</option><option value="nested2">Корень → категория → подпапка → игра</option></select>
 <button class="primary" id="scan">Сканировать</button></header>
-<div class="bar"><div id="prog"></div></div><div class="err" id="err"></div>
+<p class="muted" style="margin:8px 16px">Выберите точный уровень папок игр; внутренние папки игры не должны становиться отдельными играми. Проверяйте найденные пути до удаления. Для автоматического запуска задайте структуру в настройках MediaHub.</p><div class="bar"><div id="prog"></div></div><div class="err" id="err"></div>
 <div id="vv"><div class="cards"><div class="card"><small>Игр в библиотеке</small><b id="c1">—</b></div><div class="card"><small>Игр с несколькими версиями</small><b id="c2">—</b></div>
 <div class="card"><small>Старых версий</small><b id="c3">—</b></div><div class="card free"><small>Можно освободить</small><b id="c4">—</b></div></div>
 <div class="tools"><input type="text" id="q" placeholder="Поиск: слова, -исключить, >500мб   ( / )" autocomplete="off"><button id="qx" title="Очистить (Esc)">✕</button>
@@ -904,8 +846,8 @@ function lev(a, b) {
   return prev[b.length];
 }
 function termIn(t, text, compact, words) {
-  if (text.includes(t) || compact.includes(t.replace(/ /g, ""))) return true;     // слитно: slaveofpassion
-  const sw = [...t].map(c => LAY[c] || c).join("");                                // чужая раскладка: ыдфму
+  if (text.includes(t) || compact.includes(t.replace(/ /g, ""))) return true;
+  const sw = [...t].map(c => LAY[c] || c).join(""); // другая раскладка
   if (sw !== t && text.includes(sw)) return true;
   if (/^\p{L}{4,}$/u.test(t)) {                                                    // опечатка; цифры — только точно
     const tol = t.length <= 6 ? 1 : 2;
@@ -915,7 +857,7 @@ function termIn(t, text, compact, words) {
 }
 function accepts(pq, text, size) {
   const n = norm(text), compact = n.replace(/ /g, ""), words = n.split(" ");
-  if (pq.nots.some(x => n.includes(x))) return false;
+  if (pq.nots.some(x => n.includes(x) || compact.includes(x.replace(/ /g, "")))) return false;
   if (!pq.terms.every(t => termIn(t, n, compact, words))) return false;
   return pq.sizes.every(([op, v]) => size != null && (op === ">" ? size > v : size < v));
 }
@@ -1040,7 +982,7 @@ $("trash").onclick = async () => {
   };
 };
 $("root").value = localStorage.gsRoot || ""; $("layout").value = localStorage.gsLayout || "auto";
-api("/api/state").then(st => { if (!$("root").value && st.root) $("root").value = st.root; setState(st); if (st.running) poll(); });
+api("/api/state").then(st => { if (!$("root").value && st.root) $("root").value = st.root; if (!localStorage.gsLayout && st.layout) $("layout").value = st.layout; setState(st); if (st.running) poll(); });
 // ---------- раздел «Вкладки» (SPEC §8) ----------
 const TS = {tabs: [], sum: null, cur: null, chips: {close: false, update: false, missing: false, unsure: false, other: false}};
 const VL = {same: ["есть · та же версия", "v-ok"], newer_pc: ["на ПК новее", "v-ok"], update: ["обновить", "v-upd"],

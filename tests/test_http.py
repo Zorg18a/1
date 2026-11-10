@@ -165,7 +165,7 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(self.post_json('/api/clear', {}, {'X-MH': '1'})[0], 200)
         self.assertNotIn(job['id'], app.jobs)
 
-    def test_restart_only_closes_tab_if_downloaded_file_exists(self):
+    def test_restart_never_infers_job_success_from_a_file(self):
         with tempfile.TemporaryDirectory() as directory:
             file = Path(directory) / 'video.mp4'
             file.write_bytes(b'video')
@@ -182,8 +182,7 @@ class HttpTests(unittest.TestCase):
                     app.jobs.clear()  # Simulates a restart losing in-memory jobs.
                     app.settle()
                     row = app.sql('select status,cmd from inbox where id=?', (row['id'],))[0]
-                    self.assertEqual((row['status'], row['cmd']),
-                                     ('closing', 'close') if exists else ('kept', ''))
+                    self.assertEqual((row['status'], row['cmd']), ('kept', ''))
 
     def test_game_check_accepts_specific_id(self):
         status, result = self.post_json('/api/game/check', {'id': 17}, {'X-MH': '1'})

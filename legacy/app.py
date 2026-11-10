@@ -1,31 +1,32 @@
 # MediaHub v2: локальный загрузчик + библиотека. Движок — yt-dlp[default], ffmpeg/deno берутся из папки ffmpeg рядом.
-import sys, base64, hmac, secrets, http.client, json, os, re, subprocess, shutil, sqlite3, threading, time, webbrowser, urllib.request, itertools, http.cookiejar, mimetypes
+import sys, base64, hmac, secrets, http.client, json, logging, os, re, subprocess, shutil, sqlite3, threading, time, webbrowser, urllib.request, itertools, http.cookiejar, mimetypes
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse, urljoin, unquote, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
-
 from storage.database import open_database, execute
-from core import gamelib
+from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search, game_scan
+from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress
 from core.classify import classify
+from core.game_sources import quick_game_request
+from core.game_tags import save_tags_request
+from core.update_preview import preview_request
+from core.update_inspect import inspect_request
 from core.job_queue import JobQueue
-from legacy import gamesweep
-
-mimetypes.add_type('image/avif', '.avif')
+from legacy import gamesweep, media_subtitles, player_preview
+mimetypes.add_type('image/avif', '.avif'); mimetypes.add_type('text/javascript', '.js')
 BASE = Path(os.environ.get('MEDIAHUB_DATA_DIR') or (Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent.parent))
 BASE.mkdir(parents=True, exist_ok=True)
 ASSETS = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent.parent))
 FF = BASE / 'ffmpeg'; CFG = BASE / 'settings.json'
 if FF.exists(): os.environ['PATH'] = str(FF) + os.pathsep + os.environ['PATH']  # ffmpeg, ffprobe, deno
-cfg = {'folder': str(Path.home() / 'Downloads' / 'MediaHub'), 'workers': 3, 'skip': True, 'cookie_file': '', 'cookie_browser': '', 'games_root': '', 'show_browser': False, 'browser': 'msedge', 'limit_mb': 0, 'manga_via': 'auto', 'games_check_hours': 0,
+cfg = {'folder': str(Path.home() / 'Downloads' / 'MediaHub'), 'workers': 3, 'skip': True, 'cookie_file': '', 'cookie_browser': '', 'games_root': '', 'games_layout': 'auto', 'show_browser': False, 'browser': 'msedge', 'limit_mb': 0, 'manga_via': 'auto', 'games_check_hours': 0,
        'res': 'best', 'afmt': 'mp3', 'subs_on': False, 'subs_langs': 'ru,en', 'thumbs': True, 'depth': 1, 'maxp': 100, 'videos': True}
 if CFG.exists(): cfg.update(json.loads(CFG.read_text('utf-8')))
 db, lock = open_database(BASE / 'library.db')
 jobs, ids, prev, _op = {}, itertools.count(1), {}, [None]
 VID = {'.mp4', '.mkv', '.webm', '.mov', '.avi', '.flv', '.m4v'}; AUD = {'.mp3', '.m4a', '.opus', '.flac', '.wav', '.ogg', '.aac'}
-
-def sql(s, a=()):
-    return execute(db, lock, s, a)
+def sql(s, a=()): return execute(db, lock, s, a)
 def safe(s): return re.sub(r'[\\/:*?"<>|]+', '_', str(s or '')).strip()[:100] or 'Unknown'
 def root(sub):
     p = Path(cfg['folder']) / sub; p.mkdir(parents=True, exist_ok=True); return p
@@ -44,7 +45,6 @@ def scan():  # подхватывает файлы, которых нет в б�
         for f in d.rglob('*'):
             if f.suffix.lower() in ex and str(f) not in have and not re.search(r'\.f\d+\.', f.name):
                 add(f.stem, f.parent.name if f.parent != d else 'Unknown', 'Разное', kind, f, 'file:' + str(f))
-
 NOWIN = 0x08000000 if os.name == 'nt' else 0; _bf = [False]
 def backfill():  # обложка-кадр для видео, у которых её нет (старые загрузки, обложки отключали)
     if _bf[0]: return
@@ -61,7 +61,6 @@ def backfill():  # обложка-кадр для видео, у которых 
                 except Exception: pass
             if out.exists(): sql('update items set thumb=? where id=?', (str(out), r['id']))
     finally: _bf[0] = False
-
 def fmt(kind, r): return 'bestaudio/best' if kind == 'audio' else ('bv*+ba/b' if r == 'best' else f'bv*[height<={r}]+ba/b[height<={r}]')
 def base():
     o = {'quiet': True, 'no_warnings': True, 'remote_components': ['ejs:github']}
@@ -69,7 +68,6 @@ def base():
     elif cfg['cookie_browser']: o['cookiesfrombrowser'] = (cfg['cookie_browser'],)
     if FF.exists(): o['ffmpeg_location'] = str(FF)
     return o
-
 # ---------- видео / аудио ----------
 def media(job):  # видео/аудио; плейлисты и каналы разворачиваются и качаются несколькими потоками сразу
     import yt_dlp
@@ -107,7 +105,7 @@ def media(job):  # видео/аудио; плейлисты и каналы р�
         o['postprocessors'] = pps
         if float(cfg.get('limit_mb') or 0): o['ratelimit'] = int(float(cfg['limit_mb']) * 1048576 / max(1, min(st['total'], int(cfg.get('workers') or 3))))
         if cfg['skip']: o['download_archive'] = str(BASE / f"archive_{job['kind']}.txt")
-        with yt_dlp.YoutubeDL(o) as y: y.download([url])
+        with yt_dlp.YoutubeDL(o) as y: media_outcome.checked_download(y, url)
         with lk: st['done'] += 1; part.pop(tid, None); sp.pop(tid, None)
     urls = [job['url']]
     if not re.search(r'(youtube\.com/watch\?v=[\w-]+|youtu\.be/[\w-]+)$', job['url']):  # одиночное видео YouTube не проверяем: экономим запрос
@@ -115,9 +113,9 @@ def media(job):  # видео/аудио; плейлисты и каналы р�
             fo = base(); fo.update(extract_flat='in_playlist', skip_download=True)
             with yt_dlp.YoutubeDL(fo) as y: t = y.extract_info(job['url'], download=False)
             if t and t.get('_type') == 'playlist':
-                us = [e.get('url') or e.get('webpage_url') for e in (t.get('entries') or []) if e]; us = [u for u in us if u and str(u).startswith('http')]
+                us = media_outcome.playlist_urls(t, errs)
                 if len(us) > 1: urls = us
-        except Exception: pass
+        except Exception as e: errs.append(str(e) or 'не удалось проверить список элементов')
     st['total'] = len(urls)
     if len(urls) == 1: run(urls[0], 0)
     else:
@@ -125,8 +123,8 @@ def media(job):  # видео/аудио; плейлисты и каналы р�
         with ThreadPoolExecutor(max(1, int(cfg.get('workers') or 3))) as ex:
             for f in [ex.submit(run, u, k) for k, u in enumerate(urls)]:
                 try: f.result()
-                except Exception: pass
-    scan(); backfill()
+                except Exception as e: errs.append(str(e) or 'Ошибка загрузки элемента')
+    scan(); backfill(); media_outcome.mark_partial(job, n[0], errs)
     if not n[0] and not job['cancel']:
         if errs: raise RuntimeError(errs[-1])
         job['final'] = 'пропущено: уже скачано'
@@ -302,12 +300,7 @@ def discover(tok, d):  # быстрый обход для визуального
 
 # ---------- манга Senkuro: приём глав от закладки в браузере, загрузка страниц, читалка ----------
 MH = ('shiro.senkuro.net', 'mirai.senkuro.net'); mlock = threading.Lock()
-def sniff(b):
-    if b[:3] == b'\xff\xd8\xff': return 'jpg'
-    if b[:8] == b'\x89PNG\r\n\x1a\n': return 'png'
-    if b[:4] == b'RIFF' and b[8:12] == b'WEBP': return 'webp'
-    if b[:6] in (b'GIF87a', b'GIF89a'): return 'gif'
-    if b[4:12] in (b'ftypavif', b'ftypavis'): return 'avif'
+def sniff(b): return cover_cache.image_extension(b)
 def orig(u):  # ссылка shiro содержит адрес оригинала на mirai
     try:
         t = urlparse(u).path.rsplit('/', 1)[-1].split('.')[0]; o = base64.urlsafe_b64decode(t + '=' * (-len(t) % 4)).decode()
@@ -509,36 +502,33 @@ def manga_site(job):  # ссылка на тайтл -> сами открыва�
 _gs = {}
 def games_server():  # GameSweep живёт внутри MediaHub; после каждого сканирования игры попадают в библиотеку
     if 'h' not in _gs:
-        httpd = gamesweep.make_server(cfg.get('games_root', ''), 0); httpd.store.on_done = sync_games
+        httpd = gamesweep.make_server(cfg.get('games_root', ''), 0); httpd.store.on_done = sync_games; httpd.store.layout = cfg.get('games_layout') if cfg.get('games_layout') in game_scan.LAYOUTS else 'auto'
         threading.Thread(target=httpd.serve_forever, daemon=True).start(); _gs['h'] = httpd
     return _gs['h']
-def games_url():
-    h = games_server(); return f"http://127.0.0.1:{h.server_address[1]}/?t={h.token}"
+def games_url(): h = games_server(); return f"http://127.0.0.1:{h.server_address[1]}/?t={h.token}"
 def games_scan(root):
-    if root and os.path.isdir(root): games_server().store.start_scan(root, 'auto')
+    if root and os.path.isdir(root): games_server().store.start_scan(root, cfg.get('games_layout') if cfg.get('games_layout') in game_scan.LAYOUTS else 'auto')
 def plural(n, f): return f'{n} ' + (f[0] if n % 10 == 1 and n % 100 != 11 else f[1] if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else f[2])
 def sync_games(games, root):  # установленные игры: сливаем с карточками из браузера (по названию), остальные добавляем
-    root = os.path.abspath(root); buckets = {}
+    root = os.path.abspath(root); buckets = {}; cache = os.path.normcase(os.path.abspath(os.path.join(cfg['folder'], 'covers'))); games = [g for g in games if os.path.normcase(os.path.abspath(g['path'])) != cache]
     for g in games:
         pn = gamesweep.parse_name(g['name']); buckets.setdefault(pn['key'] or g['name'].casefold(), []).append((g, pn))
-    groups = {gr['key']: gr for gr in gamesweep.build_groups(games)}; touched = set()
+    groups = {gr['key']: gr for gr in gamesweep.build_groups(games)}
     for key, ms in buckets.items():
         gr = groups.get(key); keep = next((r for r in gr['members'] if r['status'] == 'оставить'), None) if gr else None
         newest = next((g for g, _ in ms if keep and g['path'] == keep['path']), None) or max((g for g, _ in ms), key=lambda g: g.get('mtime') or 0)
         pn = next(p for g, p in ms if g is newest); title = (gr['title'] if gr else ms[0][1]['base']) or ms[0][0]['name']; old = sum(1 for r in (gr['members'] if gr else []) if r['status'] in ('старая', 'дубль'))
         inst = {'version': (keep or {}).get('version') or (pn.get('text') or ''), 'versions': len(ms), 'old': old, 'root': root, 'path': newest['path']}
         row = find_game(key, title); info = ginfo(row) if row else {}; info['inst'] = inst; info.setdefault('added', time.time()); info.setdefault('auto', True)
-        mv = info.get('meta', {}).get('version', ''); info['update'] = bool(mv and inst['version'] and gamelib.newer(mv, inst['version']))
+        mv = info.get('meta', {}).get('version', ''); info['update'] = bool(mv and inst['version'] and gamelib.newer(mv, inst['version'])); cover = ''
+        if not (row and row['thumb'] and Path(row['thumb']).is_file()):
+            try: cover = cover_cache.cache_local_cover(newest['path'], cfg['folder'])
+            except (OSError, ValueError) as e: logging.warning('Не удалось сохранить обложку %s: %s', title, e)
         if row:
-            sql('update items set path=?, size=?, info=? where id=?', (newest['path'], int(newest.get('size') or 0), json.dumps(info, ensure_ascii=False), row['id'])); touched.add(row['id'])
+            sql("update items set path=?, size=?, info=?, thumb=case when coalesce(thumb,'')=? and ?!='' then ? else thumb end where id=?", (newest['path'], int(newest.get('size') or 0), json.dumps(info, ensure_ascii=False), row['thumb'] or '', cover, cover, row['id']))
         else:
-            sql("insert into items(title,author,topic,kind,path,root,url,size,thumb,src,info) values(?,?,?,?,?,?,?,?,?,?,?)", (title, Path(root).name or 'Игры', 'Игры', 'game', newest['path'], '', 'game:' + key, int(newest.get('size') or 0), '', root, json.dumps(info, ensure_ascii=False)))
-            touched.add(sql('select id from items where url=?', ('game:' + key,))[0]['id'])
-    for r in sql("select * from items where kind='game'"):
-        i = ginfo(r)
-        if r['id'] in touched or i.get('inst', {}).get('root') != root and r['src'] != root: continue
-        if i.get('meta'): i.pop('inst', None); sql("update items set path='', size=0, info=? where id=?", (json.dumps(i, ensure_ascii=False), r['id']))   # карточка остаётся, игра больше не скачана
-        else: sql('delete from items where id=?', (r['id'],))
+            sql("insert into items(title,author,topic,kind,path,root,url,size,thumb,src,info) values(?,?,?,?,?,?,?,?,?,?,?)", (title, Path(root).name or 'Игры', 'Игры', 'game', newest['path'], '', 'game:' + key, int(newest.get('size') or 0), cover, root, json.dumps(info, ensure_ascii=False)))
+    # A different layout or incomplete scan is not evidence that unseen cards should be deleted.
 def manga_extra(r):
     if r['kind'] == 'game':
         g = game_view(r); return ' · '.join(x for x in [g['version'] or (g['latest'] if not g['downloaded'] else ''), ('старых ' + str(g['old'])) if g['old'] else ''] if x)
@@ -592,7 +582,6 @@ enqueue, fire = scheduler.enqueue, scheduler.fire
 def spawn_workers():
     cfg['workers'] = max(1, min(12, int(cfg.get('workers') or 3)))
     scheduler.spawn_workers(cfg['workers'])
-
 # ---------- расширение браузера: входящие вкладки ----------
 for c_ in ('src', 'tracked int default 0', 'checked', 'info'):
     try: db.execute('alter table items add column ' + c_)
@@ -611,7 +600,7 @@ def new_job(url, kind, **kw):
     j = {'id': next(ids), 'url': url, 'kind': kind, 'res': cfg['res'], 'afmt': cfg['afmt'], 'depth': int(cfg['depth']), 'maxp': int(cfg['maxp']), 'videos': bool(cfg['videos']), 'sel': [], 'first': 0, 'last': 0,
          'topic': '', 'subs': cfg['subs_langs'] if cfg['subs_on'] else '', 'thumbs': bool(cfg['thumbs']), 'start_at': 0.0, 'daily': False, 'status': 'в очереди', 'pct': 0, 'title': url, 'speed': 0, 'eta': 0, 'cancel': False}
     j.update(kw); enqueue(j); return j['id']
-def add_link(title, key, src, host, tracked=0):  # источник сохраняется в любом случае, даже если скачивание не выбрано
+def add_link(title, key, src, host, tracked=0):  # сохраняем источник
     sql("insert into items(title,author,topic,kind,path,root,url,size,thumb,src,tracked) values(?,?,?,?,?,?,?,?,?,?,?) on conflict(url) do update set src=excluded.src, tracked=max(coalesce(items.tracked,0), excluded.tracked)",
         (title or key, host, 'Ссылки', 'link', '', '', key, 0, '', src, tracked))
 def inbox_add(tabs, close, browser):
@@ -633,10 +622,11 @@ def inbox_add(tabs, close, browser):
             (batch, t.get('id'), t.get('windowId'), url, str(t.get('title') or url)[:300], c['kind'], c['host'], action, state, lib, 1 if close else 0, 'pending')); n += 1
     return batch, n
 def finish_row(rid, close): sql('update inbox set status=?, cmd=? where id=?', ('closing', 'close', rid) if close else ('done', '', rid))
-def inbox_confirm(d):  # человек подтвердил план: ссылки сохраняются, загрузки уходят в очередь, пропущенное остаётся как есть
+@inbox_lock.serialize_confirm
+def inbox_confirm(d):  # подтверждение не атомарно
     rows = {r['id']: r for r in sql('select * from inbox where batch=?', (d['batch'],))}; close = bool(d.get('close')); nd = nl = 0
     for x in d.get('rows', []):
-        r = rows.get(x.get('id'))
+        r = rows.pop(x.get('id'), None)
         if not r or r['status'] != 'pending': continue
         kind = x.get('kind') if x.get('kind') in ACT else r['kind']; a = x.get('action'); a = a if (a in ACT[kind] or (a == 'known' and r['state'] in ('downloaded', 'card'))) else 'skip'
         sql('update inbox set kind=?, action=?, close_tab=? where id=?', (kind, a, 1 if close else 0, r['id']))
@@ -645,23 +635,23 @@ def inbox_confirm(d):  # человек подтвердил план: ссыл�
         c = classify(r['url'])
         if a == 'gamecard':
             jid = new_job(c['key'] or r['url'], 'gamecard', title=r['title']); sql("update inbox set status='queued', jobs=? where id=?", (json.dumps([jid]), r['id'])); nd += 1; continue
-        add_link(r['title'], c['key'], r['url'], r['host'], 1 if (a == 'track' or kind == 'playlist') else 0)
+        add_link(r['title'], c['key'], r['url'], r['host'], 1 if (a == 'track' or (kind == 'playlist' and a == 'download')) else 0)
         if a in ('link', 'track'): finish_row(r['id'], close); nl += 1; continue
         jk = 'site' if a == 'site' else JOBK.get(kind)
         if jk == 'mangaurl': jk = manga_kind()
         if not jk: sql("update inbox set status='kept', reason=? where id=?", ('скачивание с этого источника пока недоступно', r['id'])); continue
         jid = new_job(c.get('norm') or r['url'], jk, title=r['title']); sql("update inbox set status='queued', jobs=? where id=?", (json.dumps([jid]), r['id'])); nd += 1
     return {'download': nd, 'links': nl}
-def settle():  # смотрим, чем закончились задания, и решаем судьбу вкладок: закрыть только после успеха
+def settle():  # закрывать только после успеха
     for r in sql("select * from inbox where status='queued'"):
         js_ = json.loads(r['jobs'] or '[]'); sts = [jobs[j]['status'] for j in js_ if j in jobs]
-        if len(sts) < len(js_):  # приложение перезапускалось: заданий в памяти нет, смотрим, что реально лежит в библиотеке
-            it = sql('select * from items where url=?', (classify(r['url'])['key'],)); okn = bool(it and it[0]['kind'] != 'link' and Path(it[0]['path']).exists())
-            sts = ['готово'] if okn else ['ошибка: загрузка не завершилась, добавьте её снова']
+        if not js_ or len(sts) < len(js_):  # после перезапуска нельзя подтвердить успешность отсутствующих заданий
+            # Наличие файла не доказывает, что вся загрузка завершилась успешно.
+            sts = ['ошибка: результат неизвестен после перезапуска, проверьте библиотеку']
         if any(re.match(r'(качается|в очереди|запл)', s) for s in sts): continue
-        bad = next((s for s in sts if not s.startswith(('готово', 'сохранено', 'пропущено'))), '')
+        bad = next((s for s in sts if s.startswith('сохранено частично') or not s.startswith(('готово', 'сохранено'))), '')
         if not bad: finish_row(r['id'], r['close_tab']); continue
-        low = bad.lower(); why = ('нужен вход на сайте' if re.search(r'login|sign in|private|authent|cookies|членам|вход', low) else 'скачано частично' if bad.startswith('частично') else 'загрузка отменена' if bad.startswith('отменено') else 'не удалось скачать (' + bad.replace('ошибка:', '').strip()[:120] + ')')
+        low = bad.lower(); why = ('нужен вход на сайте' if re.search(r'login|sign in|private|authent|cookies|членам|вход', low) else 'скачано частично' if bad.startswith(('частично', 'сохранено частично')) else 'загрузка отменена' if bad.startswith('отменено') else 'загрузка пропущена, проверьте библиотеку' if bad.startswith('пропущено') else 'не удалось скачать (' + bad.replace('ошибка:', '').strip()[:120] + ')')
         sql("update inbox set status='kept', reason=? where id=?", (why, r['id']))
 def settle_loop():
     while True:
@@ -671,8 +661,8 @@ def settle_loop():
 def inbox_view(r):
     st = r['status']; act = r['action']
     st_txt = {'new': 'Новое', 'dup': 'Такая же вкладка уже есть в этом списке', 'link': 'Уже в библиотеке · только ссылка', 'missing': 'Уже в библиотеке · файл не найден', 'downloaded': 'Уже в библиотеке · скачано', 'card': 'Уже в библиотеке игр · не скачано'}.get(r['state'], '')
-    fate = {'pending': 'Вкладка закроется после обработки' if (r['close_tab'] and act != 'skip') else 'Вкладка останется открытой', 'queued': 'Загружается' + (', вкладка закроется после завершения' if r['close_tab'] else ''),
-            'closing': 'Закрываю вкладку…', 'closed': 'Вкладка закрыта · источник сохранён в библиотеке', 'done': 'Готово · источник сохранён в библиотеке', 'skipped': 'Пропущено, вкладка осталась открытой',
+    fate = {'pending': 'Вкладка может закрыться после успешной обработки' if (r['close_tab'] and act != 'skip') else 'Вкладка останется открытой', 'queued': 'Задание в очереди или выполняется' + (', вкладка может закрыться после успеха' if r['close_tab'] else ''),
+            'closing': 'Ожидается ответ браузера на запрос закрытия…', 'closed': 'Вкладка закрыта · источник сохранён в библиотеке', 'done': 'Готово · источник сохранён в библиотеке', 'skipped': 'Пропущено, вкладка осталась открытой',
             'reopened': 'Вкладка возвращена', 'kept': 'Вкладка осталась открытой: ' + (r['reason'] or '')}.get(st, '')
     return {'id': r['id'], 'title': r['title'], 'url': r['url'], 'host': r['host'], 'kind': r['kind'], 'action': act, 'actions': ACT.get(r['kind'], []) + (['known'] if r['state'] in ('downloaded', 'card') else []),
             'state': r['state'], 'state_text': st_txt, 'status': st, 'fate': fate, 'close': bool(r['close_tab'])}
@@ -681,7 +671,6 @@ def inbox_state():
     for b in sql('select batch, min(created) c, count(*) n from inbox group by batch order by batch desc limit 8'):
         rows = sql('select * from inbox where batch=? order by id', (b['batch'],)); out.append({'batch': b['batch'], 'created': b['c'], 'rows': [inbox_view(r) for r in rows], 'pending': any(r['status'] == 'pending' for r in rows)})
     return {'batches': out}
-
 # ---------- задания для расширения: манга в браузере пользователя ----------
 XT, XTL, EXT_SEEN = {}, threading.Lock(), [0.0]
 def ext_online(): return bool(EXT) and time.time() - EXT_SEEN[0] < 40
@@ -792,6 +781,7 @@ def find_game(key, title=''):  # сначала точный ключ, зате�
     best, score = None, 0.0
     for x in sql("select * from items where kind='game'"):
         k = x['url'][5:] if str(x['url']).startswith('game:') else name_key(x['title'])
+        if re.findall(r'\d+', k) != re.findall(r'\d+', key): continue  # разные номера
         s = difflib.SequenceMatcher(None, k, key).ratio()
         if s > score: best, score = x, s
     return best if score >= 0.9 else None
@@ -801,21 +791,18 @@ def game_view(r):  # всё, что нужно карточке в библио�
             'engine': m.get('engine', ''), 'os': m.get('os', ''), 'status': m.get('status', ''), 'release': m.get('release', ''), 'desc': m.get('desc', ''), 'links': m.get('links', []), 'support': m.get('support', []), 'thread': m.get('thread') or '',
             'language': m.get('language', ''), 'auto': i.get('auto', True), 'note': i.get('note', ''), 'checked': i.get('checked', 0), 'added': i.get('added', 0), 'versions': inst.get('versions', 1 if dl else 0), 'old': inst.get('old', 0), 'path': r['path'] if dl else ''}
 def fetch_cover(url, referer, key):
-    guard(url)
-    with opener().open(urllib.request.Request(url, headers={**UA, 'Referer': referer}), timeout=30) as r: data = r.read(8_000_000)
-    ext = sniff(data)
-    if not ext: return ''
-    d = root('Games') / 'covers'; d.mkdir(parents=True, exist_ok=True); p = d / (safe(key)[:80] + '.' + ext); p.write_bytes(data); return str(p)
+    data = cover_download.download_cover(url, referer, guard, opener(), cover_cache.MAX_COVER_BYTES)
+    return cover_cache.cache_bytes(data, cfg['folder'])
 def apply_meta(meta, thread):  # создаёт или обновляет карточку игры; установленные файлы не трогаем
     name = meta['name'] or thread; key = name_key(name); row = find_game(key, name); info = ginfo(row) if row else {}
     info['meta'] = dict(meta, thread=thread); info['checked'] = time.time(); info.setdefault('added', time.time()); info.setdefault('auto', True)
     inst = info.get('inst', {}).get('version', ''); info['update'] = bool(inst and gamelib.newer(meta.get('version', ''), inst))
     cover = ''
-    if meta.get('cover') and not (row and row['thumb'] and Path(row['thumb']).exists()):
+    if meta.get('cover') and not (row and row['thumb'] and Path(row['thumb']).is_file()):
         try: cover = fetch_cover(meta['cover'], thread, key)
-        except Exception: cover = ''
+        except Exception as e: logging.warning('Не удалось загрузить обложку %s: %s', name, e)
     if row:
-        sql("update items set title=?, author=?, src=?, info=?, thumb=case when ?='' then thumb else ? end where id=?", (name, meta.get('developer') or row['author'], thread, json.dumps(info, ensure_ascii=False), cover, cover, row['id']))
+        sql("update items set title=?, author=?, src=?, info=?, thumb=case when coalesce(thumb,'')=? and ?!='' then ? else thumb end where id=?", (name, meta.get('developer') or row['author'], thread, json.dumps(info, ensure_ascii=False), row['thumb'] or '', cover, cover, row['id']))
         return row['id']
     sql("insert into items(title,author,topic,kind,path,root,url,size,thumb,src,info) values(?,?,?,?,?,?,?,?,?,?,?)", (name, meta.get('developer') or 'Игры', 'Игры', 'game', '', '', 'game:' + key, 0, cover, thread, json.dumps(info, ensure_ascii=False)))
     return sql("select id from items where url=?", ('game:' + key,))[0]['id']
@@ -868,17 +855,17 @@ class H(BaseHTTPRequestHandler):
     def file(self, p):
         p = Path(p)
         if not p.is_file(): return self.send_error(404)
-        size = p.stat().st_size; a, b = 0, size - 1; m = re.match(r'bytes=(\d*)-(\d*)', self.headers.get('Range') or '')
-        if m:
-            if m.group(1): a = int(m.group(1))
-            if m.group(2): b = min(int(m.group(2)), size - 1)
-        self.send_response(206 if m else 200)
-        self.send_header('Content-Type', mimetypes.guess_type(p.name)[0] or 'application/octet-stream')
-        self.send_header('Accept-Ranges', 'bytes'); self.send_header('Content-Length', b - a + 1)
-        if m: self.send_header('Content-Range', f'bytes {a}-{b}/{size}')
-        self.end_headers()
         with open(p, 'rb') as f:
-            f.seek(a); left = b - a + 1
+            size = os.fstat(f.fileno()).st_size
+            headers = self.headers.get_all('Range', []); choice = byte_range.select_range(headers[0], size) if len(headers) == 1 and 'If-Range' not in self.headers else None
+            if choice is byte_range.UNSATISFIABLE:
+                self.send_response(416); self.send_header('Content-Range', f'bytes */{size}'); self.send_header('Content-Length', 0); self.send_header('Accept-Ranges', 'bytes'); self.end_headers(); return
+            a, b = choice if choice is not None else (0, size - 1); f.seek(a)
+            self.send_response(206 if choice is not None else 200)
+            self.send_header('Content-Type', mimetypes.guess_type(p.name)[0] or 'application/octet-stream')
+            self.send_header('Accept-Ranges', 'bytes'); self.send_header('Content-Length', b - a + 1)
+            if choice is not None: self.send_header('Content-Range', f'bytes {a}-{b}/{size}')
+            self.end_headers(); left = b - a + 1
             while left > 0:
                 c = f.read(min(1 << 20, left))
                 if not c: break
@@ -917,6 +904,7 @@ class H(BaseHTTPRequestHandler):
             if o in EXT: return self.js({'status': 'ok', 'token': EXT[o]})
             PAIR[o] = {'name': str(d.get('name') or 'Браузер')[:40], 't': time.time()}; return self.js({'status': 'pending'})
         if not self.ext_ok(o): return self.js({'error': 'auth'}, 401)
+        if self.path == '/ext/game/add': return self.js(*quick_game_request(d, new_job))
         if self.path == '/ext/result':  # расширение вернуло результат задания (список глав, адреса страниц)
             with XTL: t = XT.get(d.get('id'))
             if t: t['res'] = {'ok': bool(d.get('ok')), 'data': d.get('data'), 'error': d.get('error')}; t['ev'].set()
@@ -951,7 +939,8 @@ class H(BaseHTTPRequestHandler):
         except Exception as e: self.js({'error': str(e)}, 500)
     def get(self):
         u = urlparse(self.path); p = unquote(u.path); qs = {k: v[0] for k, v in parse_qs(u.query).items()}
-        if p == '/': return self.file(ASSETS / 'ui' / 'index.html')
+        if p.startswith(('/sub/', '/api/subtitles/', '/api/player-preview/')): return player_preview.get(self, p, sql) if p.startswith('/api/player-preview/') else media_subtitles.get(self, p, sql)
+        if p == '/' or p in ('/ui/app.js', '/ui/inbox-submit.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/cancel-all.js', '/ui/delete-dialog.js', '/ui/game-library.js', '/ui/game-scan-settings.js', '/ui/library-view.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-images.js', '/ui/reader-progress.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js', '/ui/player-keys.js', '/ui/player-subtitles.js', '/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
         if p == '/api/jobs':
             now = time.time(); keys = ('id', 'url', 'kind', 'status', 'pct', 'title', 'eta', 'daily', 'start_at')
             return self.js([dict({k: j.get(k) for k in keys}, speed=(j.get('speed') or 0) if now - j.get('_ts', now) < 8 else 0) for j in jobs.values()])
@@ -966,18 +955,17 @@ class H(BaseHTTPRequestHandler):
         if p == '/api/preview':
             r = dict(prev[qs['t']]); r['pages'] = r.get('pages', [])[int(qs.get('from', 0)):]; r['free'] = shutil.disk_usage(root('Video')).free; return self.js(r)
         if p == '/api/library':
-            q = '%' + qs.get('q', '') + '%'; k = qs.get('kind', '')
-            out = []
-            for r in sql("select * from items where (title like ? or author like ? or topic like ?) and (kind=? or ?='') order by id desc", (q, q, q, k, k)):
-                d = dict(r); d['missing'] = not Path(r['path']).exists(); d['cover'] = f"/t/{r['id']}" if r['thumb'] else ''; d['extra'] = manga_extra(r)
+            out = []; tag_map = game_tags.all_tags(db, lock)
+            for r in library_search.find(db, lock, qs.get('q', ''), qs.get('kind', '')):
+                d = dict(r); d['missing'] = not Path(r['path']).exists(); d['cover'] = f"/t/{r['id']}" if r['thumb'] and (r['kind'] != 'game' or Path(r['thumb']).is_file()) else ''; d['extra'] = manga_extra(r)
                 d['open'] = f"/s/{r['id']}/" + os.path.relpath(r['path'], r['root']).replace(os.sep, '/') if r['kind'] == 'site' else f"/m/{r['id']}" if r['kind'] == 'manga' else f"/f/{r['id']}"
-                if r['kind'] == 'game': d['g'] = game_view(r); d['missing'] = False
+                if r['kind'] == 'game': d['g'] = game_view(r); d['g']['tags'] = tag_map.get(r['id'], []); d['missing'] = False
                 d['state'] = 'link' if r['kind'] == 'link' else ('missing' if d['missing'] else 'ok'); d['tracked'] = r['tracked'] or 0
                 if r['kind'] == 'link': d['open'] = r['src'] or r['url']; d['missing'] = False
                 out.append(d)
             return self.js(out)
-        mm = re.match(r'/m/(\d+)$', p)
-        if mm: return self.file(ASSETS / 'ui' / 'reader.html')
+        mm = re.fullmatch(r'/([mp])/\d+', p)
+        if mm: return self.file(ASSETS / 'ui' / ('reader.html' if mm.group(1) == 'm' else 'player.html'))
         mm = re.match(r'/api/manga/(\d+)$', p)
         if mm: return self.js(manga_info(int(mm.group(1))))
         mm = re.match(r'/mi/(\d+)/(\d+)/(\d{3}\.\w+)$', p)
@@ -999,6 +987,7 @@ class H(BaseHTTPRequestHandler):
             o = self.headers.get('Origin')
             if self.headers.get('X-MH') != '1' or (o and urlparse(o).hostname not in ('127.0.0.1', 'localhost')): return self.send_error(403)
         try: self.post()
+        except json.JSONDecodeError: self.js({'error': 'Некорректный JSON'}, 400)
         except Exception as e: self.js({'error': str(e)}, 500)
     def post(self):
         if self.path == '/ingest': return self.ingest()
@@ -1024,10 +1013,7 @@ class H(BaseHTTPRequestHandler):
         if p == '/api/preview':
             tok = str(next(ids)); prev[tok] = {'done': 0, 'total': 0, 'size': 0, 'unknown': 0, 'skipped': 0, 'err': [], 'finished': False}
             threading.Thread(target=preview, args=(tok, d), daemon=True).start(); return self.js({'t': tok})
-        if p == '/api/progress':
-            r = sql('select url from items where id=?', (d['id'],))
-            if r: sql('insert or replace into progress(slug,cid,page) values(?,?,?)', (r[0]['url'][6:], str(d['cid']), int(d['page'])))
-            return self.js({'ok': 1})
+        if p == '/api/progress': return self.js(*legacy_reader_progress.progress_request(d, db, lock))
         if p == '/api/discover':
             tok = str(next(ids)); prev[tok] = {'done': 0, 'total': 0, 'size': 0, 'unknown': 0, 'skipped': 0, 'err': [], 'finished': False, 'pages': []}
             threading.Thread(target=discover, args=(tok, d), daemon=True).start(); return self.js({'t': tok})
@@ -1040,6 +1026,9 @@ class H(BaseHTTPRequestHandler):
         if p == '/api/game/check':
             game_ids = [d['id']] if d.get('id') else None
             return self.js({'job': new_job('games:check', 'gamecheck', ids=game_ids, title='Проверка игр')})
+        if p == '/api/game/zip-inspect': return self.js(*inspect_request(d, lambda item_id: next(iter(sql("select * from items where id=? and kind='game'", (item_id,))), None), gamesweep.parse_name, cfg['folder'], cfg.get('games_root', '')))
+        if p == '/api/game/incoming': return self.js(*preview_request(d, lambda item_id: next(iter(sql("select * from items where id=? and kind='game'", (item_id,))), None), game_view, gamesweep.parse_name, cfg['folder'], cfg.get('games_root', '')))
+        if p == '/api/game/tags': return self.js(*save_tags_request(d, lambda item_id, tags: game_tags.replace_tags(db, lock, item_id, tags)))
         if p == '/api/game/set':
             r = sql("select * from items where id=? and kind='game'", (d.get('id'),))
             if r:
@@ -1076,18 +1065,17 @@ class H(BaseHTTPRequestHandler):
             sql('update items set author=?, topic=?, path=?, thumb=? where id=?', (au, d['topic'].strip() or r['topic'], path, r['thumb'] if r['kind'] in ('site', 'manga', 'link', 'game') else thumb_of(path), d['id']))
             return self.js({'ok': 1})
         if p == '/api/delete':
-            r = sql('select * from items where id=?', (d['id'],))
-            if r and d.get('files') and r[0]['kind'] not in ('link', 'game') and r[0]['path']:
-                try:
-                    if r[0]['root']: shutil.rmtree(r[0]['root'])
-                    else:
-                        s = Path(r[0]['path'])
-                        for f in list(s.parent.iterdir()):
-                            if f.stem == s.stem or f.name.startswith(s.stem + '.'): f.unlink()
-                except OSError: pass
-            sql('delete from items where id=?', (d['id'],)); return self.js({'ok': 1})
+            r = sql('select * from items where id=?', (d['id'],)); error = delete_guard.check_request(d, r[0] if r else None)
+            if error: return self.js({'error': error[0]}, error[1])
+            if d.get('files') and r[0]['kind'] not in ('link', 'game') and r[0]['path']:
+                try: delete_files.remove_files(r[0])
+                except OSError: return self.js({'error': 'Не удалось удалить все файлы. Часть уже могла быть удалена; запись сохранена.'}, 500)
+            try: sql('delete from items where id=?', (d['id'],))
+            except sqlite3.Error: return self.js({'error': 'Не удалось удалить запись. Если выбрано удаление с диска, файлы уже могли быть удалены.'}, 500)
+            return self.js({'ok': 1})
         if p == '/api/settings':
-            old_gr = cfg.get('games_root'); cfg.update({k: d[k] for k in ('folder', 'skip', 'cookie_file', 'cookie_browser', 'games_root', 'show_browser', 'browser', 'limit_mb', 'workers', 'res', 'afmt', 'subs_on', 'subs_langs', 'thumbs', 'depth', 'maxp', 'videos', 'manga_via', 'games_check_hours') if k in d}); _op[0] = None; spawn_workers()
+            if 'games_layout' in d and d['games_layout'] not in game_scan.LAYOUTS: return self.js({'error': 'Неизвестная структура папок игр'}, 400)
+            old_gr = cfg.get('games_root'); cfg.update({k: d[k] for k in ('folder', 'skip', 'cookie_file', 'cookie_browser', 'games_root', 'games_layout', 'show_browser', 'browser', 'limit_mb', 'workers', 'res', 'afmt', 'subs_on', 'subs_langs', 'thumbs', 'depth', 'maxp', 'videos', 'manga_via', 'games_check_hours') if k in d}); _op[0] = None; spawn_workers()
             if cfg.get('games_root') and cfg['games_root'] != old_gr: threading.Thread(target=games_scan, args=(cfg['games_root'],), daemon=True).start()
             CFG.write_text(json.dumps(cfg, ensure_ascii=False, indent=1), 'utf-8'); return self.js(cfg)
         self.send_error(404)

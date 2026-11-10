@@ -11,6 +11,42 @@
 - `app.py` — Точка входа приложения.
 - `core/__init__.py` — Пакет бизнес-логики.
 - `core/classify.py` — классификация ссылок и нормализация ключей без сетевых запросов.
+- `core/search.py`, `storage/library_search.py` — поиск библиотеки по регистру и разделителям без изменения идентичности игр.
+- `storage/game_scan.py` — перечисление игр по явно выбранной глубине, без перехода по ссылкам и junction при обходе.
+- `ui/game-scan-settings.js` — настройка структуры для автосканирования и инструкция для ручного.
+- `tests/test_game_folder_scan.py`, `tests/test_game_scan_settings.mjs`, `scripts/browser_folder_smoke.py` — изолированные проверки вложенных каталогов, настроек и Edge.
+- `tests/test_name_search.py`, `tests/test_gamesweep_search.mjs` — поиск, группировка и сопоставление названий на временных данных.
+- `scripts/browser_search_smoke.py` — поиск в библиотеках, версиях и вкладках в Edge.
+- `core/byte_range.py` — правила одиночного HTTP Byte Range и ответов на неразрешимые диапазоны.
+- `core/media_outcome.py` — обнаружение ошибок и неполных результатов при скачивании медиаплейлистов.
+- `core/inbox_lock.py` — сериализация подтверждений «Входящих» в одном процессе без атомарности.
+- `ui/inbox-submit.js` — преобразование плана, защита от повторных кликов и обратная связь при неизвестном результате.
+- `tests/test_inbox_links.py`, `tests/test_inbox_submit.mjs` — временные HTTP-данные, одновременные запросы и UI-логика подтверждения.
+- `core/delete_guard.py` — проверка подтверждённых данных перед удалением файлов.
+- `storage/delete_files.py` — прежние правила удаления папок и соседних файлов; не защищает пути от подмены.
+- `ui/delete-dialog.js` — подтверждение удаления, последствия и обработка ошибок.
+- `tests/test_delete_http.py`, `tests/test_delete_dialog.mjs` — удаление на временных данных и UX подтверждения.
+- `tests/test_media_playlist.py` — имитация yt-dlp: статус задания и судьба вкладок без сети.
+- `core/subtitle_rules.py` — проверка имён, языка и преобразование SRT/WebVTT.
+- `core/playback.py` — изолированные правила и валидация позиции медиа.
+- `core/reader_progress.py` — валидация данных будущей timestamped записи прогресса манги.
+- `core/legacy_reader_progress.py`, `storage/legacy_reader_progress.py` — проверяемая запись в действующую схему без миграции и замены всей строки.
+- `ui/reader-progress.js` — сериализация и ручной повтор записи позиции в одной вкладке.
+- `tests/test_legacy_reader_progress.py`, `tests/test_reader_progress.mjs` — временная БД, ошибки, очередь записи и неопределённый ответ.
+- `ui/reader-images.js` — сообщения об ошибках загрузки страниц и ручной повтор.
+- `scripts/browser_reader_smoke.py` — Edge-проверка читалки и повтора на временной манге.
+- `docs/2026-11-10-mediahub-player-reader-design.md` — приложенная спецификация на проверке.
+- `docs/player-reader-plan.md` — аудит реализации и поэтапный план плеера/читалки.
+- `docs/ux-improvement-plan.md` — полный план UX-аудита и приоритеты личного Windows-приложения.
+- `tests/test_navigation_ux.py` — имена и подсказки навигации в узком окне.
+- `core/game_sources.py` — валидация игровых тем и подготовка задания для расширения.
+- `core/game_tags.py` — проверка тегов и обработка запроса на их сохранение.
+- `core/update_preview.py` — подбор возможных архивов по имени без установки.
+- `core/update_inspect.py` — проверка запроса и привязка ZIP к выбранной игре.
+- `core/save_preview.py` — валидация запроса и обработка ошибок поиска возможных сохранений.
+- `core/save_compare.py` — приблизительное сравнение путей подсказок сохранений с каталогом ZIP.
+- `core/zip_rules.py` — ограничения и проверка метаданных имён и размеров ZIP.
+- `docs/smart-update-design.md` — требования к безопасному обновлению и откату.
 - `core/job_queue.py` — очередь заданий, таймеры и потоки обработчиков.
 - `core/gamelib.py` — Разбор карточек игр, URL и сравнение версий.
 - `extension-firefox/background.js` — Фоновая логика расширения и обмен с MediaHub.
@@ -22,6 +58,7 @@
 - `extension-firefox/popup.css` — Стили окна расширения.
 - `extension-firefox/popup.html` — Разметка окна расширения.
 - `extension-firefox/popup.js` — Управление окном расширения.
+- `extension-firefox/quick-game.js` — ES-модуль кнопки добавления игры для Firefox.
 - `extension/background.js` — Фоновая логика расширения и обмен с MediaHub.
 - `extension/icon128.png` — Иконка расширения указанного размера.
 - `extension/icon16.png` — Иконка расширения указанного размера.
@@ -32,24 +69,100 @@
 - `extension/popup.css` — Стили окна расширения.
 - `extension/popup.html` — Разметка окна расширения.
 - `extension/popup.js` — Управление окном расширения.
+- `extension/quick-game.js` — ES-модуль кнопки добавления игры для Chromium.
 - `legacy/README-original.md` — Историческое описание архива; пути могут устареть.
 - `legacy/__init__.py` — Пакет совместимости исходного приложения.
 - `legacy/app.py` — Исходный сервер MediaHub, очередь и большая часть логики; техдолг.
+- `legacy/media_subtitles.py` — HTTP-эндпоинты дорожек субтитров для локальной библиотеки.
+- `legacy/player_preview.py` — предварительное read-only API медиа и субтитров без позиции.
 - `legacy/gamesweep.py` — Исходный GameSweep, включая встроенный UI и selftest; техдолг.
 - `requirements.txt` — Зависимости приложения.
 - `start.bat` — Установка зависимостей и запуск на Windows.
 - `storage/__init__.py` — Пакет хранения данных.
 - `storage/database.py` — Подключение SQLite, начальная миграция и транзакции.
+- `storage/playback.py` — изолированная миграция и хранение позиций, к приложению не подключено.
+- `storage/reader_progress.py` — изолированная транзакционная запись прогресса манги с временем.
+- `storage/subtitles.py` — ограниченный поиск и защищённое чтение файлов субтитров.
+- `storage/playback_migration.py` — экспериментальный backup-first координатор миграции; к приложению не подключён.
+- `storage/backup_restore.py` — изолированная проверка SQLite-копии и восстановление в новый файл, не подключено к приложению.
+- `tests/test_backup_restore.py` — восстановление временных баз, WAL, блокировки и сбои без перезаписи.
+- `storage/startup_schema.py` — изолированная объединённая схема и read-only проверка необходимости миграции.
+- `storage/schema_validation.py` — проверка ключевых ограничений старых таблиц в изолированном сценарии миграции.
+- `storage/game_tags.py` — атомарное хранение тегов и очистка при удалении карточки.
+- `storage/cover_cache.py` — поиск локальных обложек и неразрушающее сохранение копий.
+- `storage/cover_download.py` — ограниченная загрузка обложек с проверкой редиректов.
+- `storage/incoming_downloads.py` — подготовка папки, идентификаторы файлов и ограниченное перечисление архивов.
+- `storage/zip_inspection.py` — ограниченное чтение центрального каталога ZIP и проверка идентичности.
+- `storage/zip_content.py` — ограниченная потоковая проверка локальных заголовков и CRC без записи файлов.
+- `storage/save_discovery.py` — ограниченный поиск возможных сохранений по именам в папке игры.
+- `storage/save_inventory.py` — ограниченный просмотр метаданных файлов в найденных расположениях.
+- `storage/guarded_read.py` — экспериментальный Windows NTFS-примитив чтения с удержанием дескрипторов; пока не подключён к API.
+- `storage/windows_relative.py` — низкоуровневое открытие одного компонента относительно Windows-дескриптора.
 - `tests/test_classify.py` — проверки классификации ссылок и канонических ключей.
+- `tests/test_byte_range.py`, `tests/test_http_range.py` — правила и HTTP-тесты диапазонов файлов на временных данных.
+- `tests/test_subtitle_rules.py`, `tests/test_subtitles.py`, `tests/test_subtitles_http.py` — имена, кодировки, защищённое чтение и HTTP субтитров.
+- `tests/test_quick_game.py` — валидация, авторизация и тест карточки игры через HTTP.
+- `tests/test_quick_game.mjs` — тесты обеих копий кнопки и обработки ошибок.
 - `tests/test_core.py` — Тесты парсера игр и группировки версий.
+- `tests/test_cover_cache.py` — проверка локальных обложек, ограничений и символьных ссылок.
+- `tests/test_cover_download.py` — проверка редиректов и ограниченного чтения загрузок.
+- `tests/test_cover_http.py` — сканирование, совместимость и доставка обложек через HTTP.
+- `tests/test_incoming_downloads.py` — поиск архивов, ограничения и изоляция папок.
+- `tests/test_incoming_http.py` — защищённый предпросмотр без изменений файлов.
+- `tests/test_update_preview.mjs` — поиск, запрос проверки ZIP и отображение результатов.
+- `tests/test_zip_rules.py` — запрет опасных имён, ссылок, коллизий и превышения лимитов.
+- `tests/test_zip_inspection.py` — реальные ZIP, повреждения структуры и изменение файла.
+- `tests/test_zip_content.py` — stored/deflate, дескрипторы, повреждения, лимиты и изменение файла.
+- `tests/test_save_discovery.py` — подсказки сохранений, ограничения, ссылки и гонки.
+- `tests/test_save_inventory.py`, `tests/test_save_inventory.mjs` — просмотр состава сохранений, ограничения и интерфейс.
+- `tests/test_guarded_read.py` — проверка Windows NTFS-дескрипторов и отказов на временных файлах.
+- `tests/test_save_compare.py`, `tests/test_save_compare_request.py`, `tests/test_save_compare_http.py`, `tests/test_save_compare.mjs` — сравнение путей, изоляция, API и интерфейс.
+- `tests/test_zip_inspection_http.py` — изолированная проверка ZIP через HTTP.
+- `tests/test_game_tags.py` — проверки валидации, сохранения и отката тегов.
+- `tests/test_game_tags_http.py` — сканирование и HTTP тегов во временной библиотеке.
+- `tests/test_game_library.mjs` — сортировка, фильтр размеров и игровые метки.
+- `tests/test_game_actions.mjs` — подписи действий и пояснение сортировки игр.
 - `tests/test_extension_errors.py` — ошибки подключения и подтверждений расширения.
 - `tests/test_job_queue.py` — тесты очереди, таймеров, отмены и потоков.
 - `tests/test_queue_http.py` — прохождение задания через HTTP и реальный поток без сети.
 - `tests/test_http.py` — HTTP-тесты, защита, входящие и статусы загрузок на временной базе.
 - `tests/test_storage.py` — Тесты SQLite, миграции и rollback.
+- `tests/test_playback_storage.py` — тесты правил и миграции позиций на временных БД.
+- `tests/test_reader_progress_storage.py` — проверка будущей записи прогресса, отката и совместимости читалки на временных БД.
+- `tests/test_playback_migration.py` — снимки SQLite, WAL, конфликты и отказы на временных БД.
+- `tests/test_startup_schema.py` — единая миграция временной БД, откат, повторное открытие и HTTP-совместимость.
+- `tests/test_schema_validation.py` — совместимые и ошибочные ключи/индексы, резервная копия и откат на временных БД.
 - `ui/__init__.py` — Пакет ресурсов интерфейса.
+- `ui/app.js` — запуск новых ES-модулей интерфейса.
+- `ui/game-library.js` — игровые метки, сортировка и фильтр по размеру.
+- `ui/game-tags.js` — доступная форма редактирования тегов карточки.
+- `ui/game-update-preview.js` — поиск возможных архивов из карточки игры.
+- `ui/save-inventory.js` — кнопка и безопасное отображение списка возможных файлов сохранений.
+- `ui/preferences.js` — настройки отображения и клавиш в localStorage.
+- `ui/notifications.js` — журнал событий сессии и уведомления на 8 секунд.
+- `ui/job-events.js` — обнаружение завершения заданий по данным API.
+- `ui/library-view.js` — проверка и сохранение параметров вида основной библиотеки в localStorage.
+- `tests/test_library_view.mjs` — сохранение и восстановление вида, блокировка хранилища.
+- `ui/cancel-all.js` — подтверждение отмены снимка активных заданий и обработка ошибок.
+- `tests/test_cancel_all.mjs` — проверки подтверждения, снимка и ошибок отмены.
+- `tests/test_inbox_partial.py` — opt-in закрытия вкладок и судьба распознанных частичных результатов.
+- `ui/hotkeys.js` — клавиатурные последовательности и справка.
+- `ui/accessibility.css` — темы, масштаб, контраст и стили доступности.
+- `tests/test_ui.mjs` — Node-тесты логики новых ES-модулей.
+- `tests/test_ui_assets.py` — проверка HTTP-доставки и ограничений статических ресурсов.
 - `ui/index.html` — Главный браузерный интерфейс.
-- `ui/reader.html` — Читалка манги.
+- `ui/player.html`, `ui/player.css` — предварительная страница плеера и стили.
+- `ui/player.js`, `ui/player-keys.js` — встроенные медиаэлементы и клавиши без сохранения позиции.
+- `ui/player-subtitles.js` — доступный выбор и локальная настройка дорожек субтитров.
+- `tests/test_player.mjs`, `tests/test_player_http.py` — DOM/клавиши и HTTP предварительного плеера.
+- `tests/test_library_player.mjs` — отрисовка безопасной ссылки предпросмотра в карточках библиотеки.
+- `tests/test_player_subtitles.mjs`, `scripts/browser_player_smoke.py` — выбор дорожек и headless Edge smoke на временном медиа.
+- `ui/reader.html` — каркас читалки манги и доступные элементы управления.
+- `ui/reader.js` — загрузка глав, восстановление позиции, фокус и сохранение страницы.
+- `ui/reader-modes.js` — режимы вписывания, масштаб и клавиши читалки.
+- `ui/reader.css` — стили режимов читалки и адаптация элементов управления.
+- `tests/test_reader.mjs` — настройки, клавиатура и сохранение читалки в синтетическом DOM.
+- `tests/test_reader_http.py` — реальные HTTP-эндпоинты манги и прогресс на временной библиотеке.
 - `scripts/smoke_exe.py` — проверка запущенной сборки и комплектности ресурсов на Windows.
 - `tests/test_migration.py` — интеграционный тест миграции копии старой базы и HTTP.
 - `scripts/run_tests.py` — запускает тесты и выводит ошибки в аннотации GitHub Actions.

@@ -1,0 +1,26 @@
+import './inbox-submit.js';
+import { setupPreferences } from './preferences.js';
+import { setupNotifications } from './notifications.js';
+import { setupHotkeys } from './hotkeys.js';
+import { setupJobEvents } from './job-events.js';
+import { setupCancelAll } from './cancel-all.js';
+import { setupDeleteDialog } from './delete-dialog.js';
+import { setupGameLibrary } from './game-library.js';
+import { setupGameScanSettings } from './game-scan-settings.js';
+import { setupLibraryView } from './library-view.js';
+import { setupGameTags } from './game-tags.js';
+import { setupUpdatePreview } from './game-update-preview.js';
+import { setupSaveInventory } from './save-inventory.js';
+
+const preferences = setupPreferences();
+setupNotifications();
+setupJobEvents();
+setupCancelAll();
+setupDeleteDialog();
+setupHotkeys(preferences);
+setupGameTags();
+setupUpdatePreview();
+setupSaveInventory();
+setupGameLibrary();
+setupGameScanSettings();
+setupLibraryView();

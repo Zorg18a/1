@@ -18,6 +18,24 @@ jobs:
         run: |
           python -m compileall -q app.py core storage ui legacy tests
           python scripts/run_tests.py
+      - name: Check UI modules
+        run: node --test tests/test_ui.mjs tests/test_game_scan_settings.mjs tests/test_gamesweep_search.mjs tests/test_inbox_submit.mjs tests/test_cancel_all.mjs tests/test_delete_dialog.mjs tests/test_quick_game.mjs tests/test_game_library.mjs tests/test_game_actions.mjs tests/test_update_preview.mjs tests/test_save_compare.mjs tests/test_save_inventory.mjs tests/test_reader.mjs tests/test_reader_progress.mjs tests/test_player.mjs tests/test_player_subtitles.mjs tests/test_library_player.mjs tests/test_library_view.mjs
+      - name: Check player in headless Edge
+        env:
+          PYTHONUTF8: '1'
+        run: python -m scripts.browser_player_smoke
+      - name: Check reader in headless Edge
+        env:
+          PYTHONUTF8: '1'
+        run: python -m scripts.browser_reader_smoke
+      - name: Check searches in headless Edge
+        env:
+          PYTHONUTF8: '1'
+        run: python -m scripts.browser_search_smoke
+      - name: Check nested game folders in headless Edge
+        env:
+          PYTHONUTF8: '1'
+        run: python -m scripts.browser_folder_smoke
       - name: Build executable
         run: >-
           python -m PyInstaller --noconfirm --clean --onedir --name MediaHub

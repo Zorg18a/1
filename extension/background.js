@@ -54,7 +54,7 @@ async function sendTabs(m) {
 }
 
 ext.runtime.onMessage.addListener((m, _s, reply) => {
-  if (m.type === 'send') { sendTabs(m).then(reply); return true; }
+  if (m.type === 'send') { sendTabs(m).then(reply); return true; } if (m.type === 'wake') { poll(); reply({ ok: true }); }
   return false;
 });
 

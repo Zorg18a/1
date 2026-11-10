@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Плеер — MediaHub</title>
+  <link rel="stylesheet" href="/ui/player.css">
+  <link rel="stylesheet" href="/ui/accessibility.css">
+</head>
+<body>
+  <header><a href="/">← Библиотека</a><h1 id="player-title">Плеер</h1><button type="button" id="player-help-open">Справка по клавишам</button></header>
+  <main>
+    <p class="notice">Предварительная версия: позиция воспроизведения пока не сохраняется.</p>
+    <p id="player-warning" role="status"></p>
+    <div id="player-container"></div>
+    <div id="player-subtitle-control" hidden><label for="player-subtitles">Субтитры</label> <select id="player-subtitles"></select></div>
+    <div id="player-error" role="alert" hidden><span id="player-error-text"></span> <a id="player-direct" hidden>Открыть файл напрямую</a></div>
+    <p id="player-announcement" class="sr-only" role="status" aria-live="polite"></p>
+  </main>
+  <dialog id="player-help" aria-labelledby="player-help-title">
+    <h2 id="player-help-title">Клавиши плеера</h2>
+    <p>K — пауза и воспроизведение, J/L — назад и вперёд на 10 секунд, [/] — скорость, C — субтитры, M — звук, F — полный экран, ? — справка.</p>
+    <p>Клавиши можно отключить в общих настройках. При фокусе на элементе плеера работают его собственные клавиши браузера.</p>
+    <button type="button" id="player-help-close">Закрыть</button>
+  </dialog>
+  <script type="module" src="/ui/player.js"></script>
+</body>
+</html>
