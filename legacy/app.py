@@ -5,8 +5,8 @@ from urllib.parse import urlparse, urljoin, unquote, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from storage.database import open_database, execute
-from storage import cover_cache, cover_download, game_tags, incoming_downloads
-from core import gamelib, byte_range, media_outcome
+from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files
+from core import gamelib, byte_range, media_outcome, delete_guard
 from core.classify import classify
 from core.game_sources import quick_game_request
 from core.game_tags import save_tags_request
@@ -944,7 +944,7 @@ class H(BaseHTTPRequestHandler):
     def get(self):
         u = urlparse(self.path); p = unquote(u.path); qs = {k: v[0] for k, v in parse_qs(u.query).items()}
         if p.startswith(('/sub/', '/api/subtitles/', '/api/player-preview/')): return player_preview.get(self, p, sql) if p.startswith('/api/player-preview/') else media_subtitles.get(self, p, sql)
-        if p == '/' or p in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/cancel-all.js', '/ui/game-library.js', '/ui/library-view.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js', '/ui/player-keys.js', '/ui/player-subtitles.js', '/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
+        if p == '/' or p in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/cancel-all.js', '/ui/delete-dialog.js', '/ui/game-library.js', '/ui/library-view.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js', '/ui/player-keys.js', '/ui/player-subtitles.js', '/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
         if p == '/api/jobs':
             now = time.time(); keys = ('id', 'url', 'kind', 'status', 'pct', 'title', 'eta', 'daily', 'start_at')
             return self.js([dict({k: j.get(k) for k in keys}, speed=(j.get('speed') or 0) if now - j.get('_ts', now) < 8 else 0) for j in jobs.values()])
@@ -1073,16 +1073,14 @@ class H(BaseHTTPRequestHandler):
             sql('update items set author=?, topic=?, path=?, thumb=? where id=?', (au, d['topic'].strip() or r['topic'], path, r['thumb'] if r['kind'] in ('site', 'manga', 'link', 'game') else thumb_of(path), d['id']))
             return self.js({'ok': 1})
         if p == '/api/delete':
-            r = sql('select * from items where id=?', (d['id'],))
-            if r and d.get('files') and r[0]['kind'] not in ('link', 'game') and r[0]['path']:
-                try:
-                    if r[0]['root']: shutil.rmtree(r[0]['root'])
-                    else:
-                        s = Path(r[0]['path'])
-                        for f in list(s.parent.iterdir()):
-                            if f.stem == s.stem or f.name.startswith(s.stem + '.'): f.unlink()
-                except OSError: pass
-            sql('delete from items where id=?', (d['id'],)); return self.js({'ok': 1})
+            r = sql('select * from items where id=?', (d['id'],)); error = delete_guard.check_request(d, r[0] if r else None)
+            if error: return self.js({'error': error[0]}, error[1])
+            if d.get('files') and r[0]['kind'] not in ('link', 'game') and r[0]['path']:
+                try: delete_files.remove_files(r[0])
+                except OSError: return self.js({'error': 'Не удалось удалить все файлы. Часть уже могла быть удалена; запись сохранена.'}, 500)
+            try: sql('delete from items where id=?', (d['id'],))
+            except sqlite3.Error: return self.js({'error': 'Не удалось удалить запись. Если выбрано удаление с диска, файлы уже могли быть удалены.'}, 500)
+            return self.js({'ok': 1})
         if p == '/api/settings':
             old_gr = cfg.get('games_root'); cfg.update({k: d[k] for k in ('folder', 'skip', 'cookie_file', 'cookie_browser', 'games_root', 'show_browser', 'browser', 'limit_mb', 'workers', 'res', 'afmt', 'subs_on', 'subs_langs', 'thumbs', 'depth', 'maxp', 'videos', 'manga_via', 'games_check_hours') if k in d}); _op[0] = None; spawn_workers()
             if cfg.get('games_root') and cfg['games_root'] != old_gr: threading.Thread(target=games_scan, args=(cfg['games_root'],), daemon=True).start()

@@ -229,9 +229,9 @@ code{padding:1px 6px;border-radius:5px;background:var(--raise);font:12.5px ui-mo
  <div class="db"><p class="mu" id="editT" style="margin:0 0 14px"></p><label class="field"><span>Автор</span><input id="eAuthor"></label><label class="field"><span>Тема</span><input id="eTopic"></label>
  <p class="mu" style="margin:0">Файлы видео и музыки переедут в папку нового автора.</p></div>
  <div class="df"><button class="btn" id="editC">Отмена</button><button class="btn primary" id="editS">Сохранить</button></div></dialog>
-<dialog id="delDlg" aria-labelledby="delH"><div class="dh"><h2 id="delH">Удалить?</h2></div>
- <div class="db"><p id="delT" style="margin:0"></p></div>
- <div class="df"><button class="btn" id="delC">Отмена</button><button class="btn" id="delL">Убрать из библиотеки</button><button class="btn danger" id="delF">Удалить с диска</button></div></dialog>
+<dialog id="delDlg" aria-labelledby="delH" aria-describedby="delT"><div class="dh"><h2 id="delH">Удалить?</h2></div>
+ <div class="db"><p id="delT" style="margin:0;white-space:pre-line;overflow-wrap:anywhere"></p><p id="delError" role="alert" hidden></p></div>
+ <div class="df"><button class="btn" id="delC" autofocus>Отмена</button><button class="btn" id="delL">Убрать из библиотеки</button><button class="btn danger" id="delF">Удалить с диска</button></div></dialog>
 <div id="toastBox"></div>
 <script>
 const $=id=>document.getElementById(id),qa=s=>[...document.querySelectorAll(s)];
@@ -274,11 +274,8 @@ async function scan(){await api('/api/scan',{});toast('Папка просмот
 let EI=null;
 function edit(i){EI=L[i];$('editT').textContent=EI.title;$('eAuthor').value=EI.author||'';$('eTopic').value=EI.topic||'';$('editDlg').showModal()}
 $('editC').onclick=()=>$('editDlg').close();$('editS').onclick=async()=>{await api('/api/edit',{id:EI.id,author:$('eAuthor').value,topic:$('eTopic').value});$('editDlg').close();lib();toast('Сохранено')};
-function del(i){EI=L[i];const keep=EI.kind=='game'||EI.kind=='link';$('delT').textContent='«'+EI.title+'»'+(EI.kind=='game'?'. Файлы игры не удаляются: игра только пропадёт из библиотеки до следующего сканирования.':'');$('delF').classList.toggle('hide',keep);$('delDlg').showModal()}
+function del(i){window.MediaHubDelete?.open(L[i])}
 async function rv(i){const r=await api('/api/reveal',{id:L[i].id});toast(r.ok?'Открываю в проводнике':'Не удалось открыть: файла нет на месте')}
-$('delC').onclick=()=>$('delDlg').close();
-async function rm(files){await api('/api/delete',{id:EI.id,files});$('delDlg').close();lib();toast(files?'Удалено вместе с файлами':'Убрано из библиотеки')}
-$('delL').onclick=()=>rm(false);$('delF').onclick=()=>rm(true);
 /* --- добавление --- */
 let AK='video',P=[],MX=false,picked=false;
 const TYPES=[['video','Видео'],['audio','Аудио'],['manga','Манга'],['site','Сайт']];
@@ -371,7 +368,7 @@ $('gpanel').onclick=async e=>{const x=GA.find(y=>y.id==GOPEN);if(!x)return;const
  if(a=='thread')window.open(x.g.thread,'_blank','noopener');
  if(a=='check'){await api('/api/game/check',{id:x.id});poll();toast('Проверяю тему в вашем браузере…','Загрузки',()=>location.hash='#downloads')}
  if(a=='links'){const t=$('glh');t&&t.scrollIntoView({behavior:'smooth'})}
- if(a=='drop'){await api('/api/delete',{id:x.id,files:false});closePanel();loadGames();toast('Убрано из библиотеки')}
+ if(a=='drop'){window.MediaHubDelete?.open(x);return}
  if(b.dataset.gl!==undefined)window.open(x.g.links[+b.dataset.gl].url,'_blank','noopener');
  if(b.dataset.sp)window.open(b.dataset.sp,'_blank','noopener');
  if(b.dataset.pg){const k=b.dataset.pg;GGEN.has(k)?GGEN.delete(k):GGEN.add(k);closePanel();drawGames()}};
