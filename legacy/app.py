@@ -13,7 +13,7 @@ from core.game_tags import save_tags_request
 from core.update_preview import preview_request
 from core.update_inspect import inspect_request
 from core.job_queue import JobQueue
-from legacy import gamesweep, media_subtitles
+from legacy import gamesweep, media_subtitles, player_preview
 mimetypes.add_type('image/avif', '.avif'); mimetypes.add_type('text/javascript', '.js')
 BASE = Path(os.environ.get('MEDIAHUB_DATA_DIR') or (Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent.parent))
 BASE.mkdir(parents=True, exist_ok=True)
@@ -943,8 +943,8 @@ class H(BaseHTTPRequestHandler):
         except Exception as e: self.js({'error': str(e)}, 500)
     def get(self):
         u = urlparse(self.path); p = unquote(u.path); qs = {k: v[0] for k, v in parse_qs(u.query).items()}
-        if p.startswith(('/sub/', '/api/subtitles/')): return media_subtitles.get(self, p, sql)
-        if p == '/' or p in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/game-library.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-modes.js', '/ui/reader.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
+        if p.startswith(('/sub/', '/api/subtitles/', '/api/player-preview/')): return player_preview.get(self, p, sql) if p.startswith('/api/player-preview/') else media_subtitles.get(self, p, sql)
+        if p == '/' or p in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/game-library.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js', '/ui/player-keys.js', '/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
         if p == '/api/jobs':
             now = time.time(); keys = ('id', 'url', 'kind', 'status', 'pct', 'title', 'eta', 'daily', 'start_at')
             return self.js([dict({k: j.get(k) for k in keys}, speed=(j.get('speed') or 0) if now - j.get('_ts', now) < 8 else 0) for j in jobs.values()])
@@ -969,8 +969,8 @@ class H(BaseHTTPRequestHandler):
                 if r['kind'] == 'link': d['open'] = r['src'] or r['url']; d['missing'] = False
                 out.append(d)
             return self.js(out)
-        mm = re.match(r'/m/(\d+)$', p)
-        if mm: return self.file(ASSETS / 'ui' / 'reader.html')
+        mm = re.fullmatch(r'/([mp])/\d+', p)
+        if mm: return self.file(ASSETS / 'ui' / ('reader.html' if mm.group(1) == 'm' else 'player.html'))
         mm = re.match(r'/api/manga/(\d+)$', p)
         if mm: return self.js(manga_info(int(mm.group(1))))
         mm = re.match(r'/mi/(\d+)/(\d+)/(\d{3}\.\w+)$', p)

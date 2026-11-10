@@ -34,6 +34,12 @@ def subtitle_name(media_name, filename):
     return (lang, label, ext)
 
 
+def public_tracks(item_id, tracks):
+    return [{'n': index, 'lang': track['lang'], 'label': track['label'],
+             'url': f"/sub/{item_id}/{index}.vtt?rev={track['revision']}"}
+            for index, track in enumerate(tracks)]
+
+
 def to_webvtt(data, extension):
     if not isinstance(data, bytes) or len(data) > MAX_BYTES:
         raise SubtitleError('Субтитры слишком большие')

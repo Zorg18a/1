@@ -2,7 +2,7 @@
 import re
 from urllib.parse import parse_qs, urlsplit
 
-from core.subtitle_rules import SubtitleError
+from core.subtitle_rules import SubtitleError, public_tracks
 from storage import subtitles
 
 
@@ -21,9 +21,7 @@ def get(handler, path, sql):
     try:
         if metadata:
             tracks = subtitles.list_tracks(rows[0]['path'])
-            return handler.js({'subs': [{'n': i, 'lang': track['lang'], 'label': track['label'],
-                                         'url': f"/sub/{item_id}/{i}.vtt?rev={track['revision']}"}
-                                        for i, track in enumerate(tracks)]})
+            return handler.js({'subs': public_tracks(item_id, tracks)})
         query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
         revisions = query.get('rev', [])
         if revisions and (len(revisions) != 1 or not re.fullmatch(r'[0-9a-f]{32}', revisions[0])):
