@@ -12,6 +12,9 @@
 - `core/__init__.py` — Пакет бизнес-логики.
 - `core/classify.py` — классификация ссылок и нормализация ключей без сетевых запросов.
 - `core/search.py`, `storage/library_search.py` — поиск библиотеки по регистру и разделителям без изменения идентичности игр.
+- `storage/game_scan.py` — перечисление игр по явно выбранной глубине, без перехода по ссылкам и junction при обходе.
+- `ui/game-scan-settings.js` — настройка структуры для автосканирования и инструкция для ручного.
+- `tests/test_game_folder_scan.py`, `tests/test_game_scan_settings.mjs`, `scripts/browser_folder_smoke.py` — изолированные проверки вложенных каталогов, настроек и Edge.
 - `tests/test_name_search.py`, `tests/test_gamesweep_search.mjs` — поиск, группировка и сопоставление названий на временных данных.
 - `scripts/browser_search_smoke.py` — поиск в библиотеках, версиях и вкладках в Edge.
 - `core/byte_range.py` — правила одиночного HTTP Byte Range и ответов на неразрешимые диапазоны.

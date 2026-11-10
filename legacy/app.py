@@ -5,7 +5,7 @@ from urllib.parse import urlparse, urljoin, unquote, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from storage.database import open_database, execute
-from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search
+from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search, game_scan
 from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock
 from core.classify import classify
 from core.game_sources import quick_game_request
@@ -20,7 +20,7 @@ BASE.mkdir(parents=True, exist_ok=True)
 ASSETS = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent.parent))
 FF = BASE / 'ffmpeg'; CFG = BASE / 'settings.json'
 if FF.exists(): os.environ['PATH'] = str(FF) + os.pathsep + os.environ['PATH']  # ffmpeg, ffprobe, deno
-cfg = {'folder': str(Path.home() / 'Downloads' / 'MediaHub'), 'workers': 3, 'skip': True, 'cookie_file': '', 'cookie_browser': '', 'games_root': '', 'show_browser': False, 'browser': 'msedge', 'limit_mb': 0, 'manga_via': 'auto', 'games_check_hours': 0,
+cfg = {'folder': str(Path.home() / 'Downloads' / 'MediaHub'), 'workers': 3, 'skip': True, 'cookie_file': '', 'cookie_browser': '', 'games_root': '', 'games_layout': 'auto', 'show_browser': False, 'browser': 'msedge', 'limit_mb': 0, 'manga_via': 'auto', 'games_check_hours': 0,
        'res': 'best', 'afmt': 'mp3', 'subs_on': False, 'subs_langs': 'ru,en', 'thumbs': True, 'depth': 1, 'maxp': 100, 'videos': True}
 if CFG.exists(): cfg.update(json.loads(CFG.read_text('utf-8')))
 db, lock = open_database(BASE / 'library.db')
@@ -502,18 +502,18 @@ def manga_site(job):  # ссылка на тайтл -> сами открыва�
 _gs = {}
 def games_server():  # GameSweep живёт внутри MediaHub; после каждого сканирования игры попадают в библиотеку
     if 'h' not in _gs:
-        httpd = gamesweep.make_server(cfg.get('games_root', ''), 0); httpd.store.on_done = sync_games
+        httpd = gamesweep.make_server(cfg.get('games_root', ''), 0); httpd.store.on_done = sync_games; httpd.store.layout = cfg.get('games_layout') if cfg.get('games_layout') in game_scan.LAYOUTS else 'auto'
         threading.Thread(target=httpd.serve_forever, daemon=True).start(); _gs['h'] = httpd
     return _gs['h']
 def games_url(): h = games_server(); return f"http://127.0.0.1:{h.server_address[1]}/?t={h.token}"
 def games_scan(root):
-    if root and os.path.isdir(root): games_server().store.start_scan(root, 'auto')
+    if root and os.path.isdir(root): games_server().store.start_scan(root, cfg.get('games_layout') if cfg.get('games_layout') in game_scan.LAYOUTS else 'auto')
 def plural(n, f): return f'{n} ' + (f[0] if n % 10 == 1 and n % 100 != 11 else f[1] if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else f[2])
 def sync_games(games, root):  # установленные игры: сливаем с карточками из браузера (по названию), остальные добавляем
     root = os.path.abspath(root); buckets = {}; cache = os.path.normcase(os.path.abspath(os.path.join(cfg['folder'], 'covers'))); games = [g for g in games if os.path.normcase(os.path.abspath(g['path'])) != cache]
     for g in games:
         pn = gamesweep.parse_name(g['name']); buckets.setdefault(pn['key'] or g['name'].casefold(), []).append((g, pn))
-    groups = {gr['key']: gr for gr in gamesweep.build_groups(games)}; touched = set()
+    groups = {gr['key']: gr for gr in gamesweep.build_groups(games)}
     for key, ms in buckets.items():
         gr = groups.get(key); keep = next((r for r in gr['members'] if r['status'] == 'оставить'), None) if gr else None
         newest = next((g for g, _ in ms if keep and g['path'] == keep['path']), None) or max((g for g, _ in ms), key=lambda g: g.get('mtime') or 0)
@@ -525,15 +525,10 @@ def sync_games(games, root):  # установленные игры: слива�
             try: cover = cover_cache.cache_local_cover(newest['path'], cfg['folder'])
             except (OSError, ValueError) as e: logging.warning('Не удалось сохранить обложку %s: %s', title, e)
         if row:
-            sql("update items set path=?, size=?, info=?, thumb=case when coalesce(thumb,'')=? and ?!='' then ? else thumb end where id=?", (newest['path'], int(newest.get('size') or 0), json.dumps(info, ensure_ascii=False), row['thumb'] or '', cover, cover, row['id'])); touched.add(row['id'])
+            sql("update items set path=?, size=?, info=?, thumb=case when coalesce(thumb,'')=? and ?!='' then ? else thumb end where id=?", (newest['path'], int(newest.get('size') or 0), json.dumps(info, ensure_ascii=False), row['thumb'] or '', cover, cover, row['id']))
         else:
             sql("insert into items(title,author,topic,kind,path,root,url,size,thumb,src,info) values(?,?,?,?,?,?,?,?,?,?,?)", (title, Path(root).name or 'Игры', 'Игры', 'game', newest['path'], '', 'game:' + key, int(newest.get('size') or 0), cover, root, json.dumps(info, ensure_ascii=False)))
-            touched.add(sql('select id from items where url=?', ('game:' + key,))[0]['id'])
-    for r in sql("select * from items where kind='game'"):
-        i = ginfo(r)
-        if r['id'] in touched or incoming_downloads.is_incoming_path(r['path']) or (r['path'] and os.path.normcase(os.path.abspath(r['path'])) == cache) or i.get('inst', {}).get('root') != root and r['src'] != root: continue
-        if i.get('meta') or i.get('note') or game_tags.has_tags(db, lock, r['id']): i.pop('inst', None); sql("update items set path='', size=0, info=? where id=?", (json.dumps(i, ensure_ascii=False), r['id']))   # карточка остаётся, игра больше не скачана
-        else: sql('delete from items where id=? and not exists (select 1 from game_tags where item_id=items.id)', (r['id'],))
+    # A different layout or incomplete scan is not evidence that unseen cards should be deleted.
 def manga_extra(r):
     if r['kind'] == 'game':
         g = game_view(r); return ' · '.join(x for x in [g['version'] or (g['latest'] if not g['downloaded'] else ''), ('старых ' + str(g['old'])) if g['old'] else ''] if x)
@@ -945,7 +940,7 @@ class H(BaseHTTPRequestHandler):
     def get(self):
         u = urlparse(self.path); p = unquote(u.path); qs = {k: v[0] for k, v in parse_qs(u.query).items()}
         if p.startswith(('/sub/', '/api/subtitles/', '/api/player-preview/')): return player_preview.get(self, p, sql) if p.startswith('/api/player-preview/') else media_subtitles.get(self, p, sql)
-        if p == '/' or p in ('/ui/app.js', '/ui/inbox-submit.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/cancel-all.js', '/ui/delete-dialog.js', '/ui/game-library.js', '/ui/library-view.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-images.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js', '/ui/player-keys.js', '/ui/player-subtitles.js', '/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
+        if p == '/' or p in ('/ui/app.js', '/ui/inbox-submit.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/cancel-all.js', '/ui/delete-dialog.js', '/ui/game-library.js', '/ui/game-scan-settings.js', '/ui/library-view.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-images.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js', '/ui/player-keys.js', '/ui/player-subtitles.js', '/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
         if p == '/api/jobs':
             now = time.time(); keys = ('id', 'url', 'kind', 'status', 'pct', 'title', 'eta', 'daily', 'start_at')
             return self.js([dict({k: j.get(k) for k in keys}, speed=(j.get('speed') or 0) if now - j.get('_ts', now) < 8 else 0) for j in jobs.values()])
@@ -1082,7 +1077,8 @@ class H(BaseHTTPRequestHandler):
             except sqlite3.Error: return self.js({'error': 'Не удалось удалить запись. Если выбрано удаление с диска, файлы уже могли быть удалены.'}, 500)
             return self.js({'ok': 1})
         if p == '/api/settings':
-            old_gr = cfg.get('games_root'); cfg.update({k: d[k] for k in ('folder', 'skip', 'cookie_file', 'cookie_browser', 'games_root', 'show_browser', 'browser', 'limit_mb', 'workers', 'res', 'afmt', 'subs_on', 'subs_langs', 'thumbs', 'depth', 'maxp', 'videos', 'manga_via', 'games_check_hours') if k in d}); _op[0] = None; spawn_workers()
+            if 'games_layout' in d and d['games_layout'] not in game_scan.LAYOUTS: return self.js({'error': 'Неизвестная структура папок игр'}, 400)
+            old_gr = cfg.get('games_root'); cfg.update({k: d[k] for k in ('folder', 'skip', 'cookie_file', 'cookie_browser', 'games_root', 'games_layout', 'show_browser', 'browser', 'limit_mb', 'workers', 'res', 'afmt', 'subs_on', 'subs_langs', 'thumbs', 'depth', 'maxp', 'videos', 'manga_via', 'games_check_hours') if k in d}); _op[0] = None; spawn_workers()
             if cfg.get('games_root') and cfg['games_root'] != old_gr: threading.Thread(target=games_scan, args=(cfg['games_root'],), daemon=True).start()
             CFG.write_text(json.dumps(cfg, ensure_ascii=False, indent=1), 'utf-8'); return self.js(cfg)
         self.send_error(404)
