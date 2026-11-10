@@ -56,6 +56,19 @@ test('untrusted ids are rejected and titles are escaped in the preview label', (
   assert.doesNotMatch(output, /href="\/p\/1" onclick=/);
 });
 
+test('a selected type remains available when search has no matching items', () => {
+  const elements = { so: { value: 'title' }, gb: { value: '' }, q: { value: 'nothing' },
+    chips: { innerHTML: '' }, lib: { innerHTML: '' } };
+  const context = { ALL: [], FK: 'video', L: [], $: id => elements[id], B: () => '0 Б', I: () => '', IC: {} };
+  vm.runInNewContext(`${escapeCode}\n${drawCode}\ndraw()`, context);
+  assert.equal(context.FK, 'video');
+  assert.match(elements.chips.innerHTML, /aria-pressed="true"[^>]*>Видео<span>0/);
+  assert.match(elements.lib.innerHTML, /выбранному типу/);
+  elements.q.value = '';
+  vm.runInContext('draw()', context);
+  assert.match(elements.lib.innerHTML, /Показать все материалы/);
+});
+
 test('the preview link follows library filtering and grouping', () => {
   const items = [{ id: 1, kind: 'video', title: 'Video', author: 'Creator', open: '/f/1' },
     { id: 2, kind: 'audio', title: 'Audio', author: 'Creator', open: '/f/2' }];

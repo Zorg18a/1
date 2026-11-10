@@ -253,14 +253,14 @@ function toast(t,label,fn){window.dispatchEvent(new CustomEvent('mediahub:notify
 /* --- библиотека --- */
 let ALL=[],FK='',L=[];
 async function lib(){ALL=await api('/api/library?q='+encodeURIComponent($('q').value));draw()}
-function setK(k){FK=k;draw()}
+function setK(k){FK=k;draw();window.dispatchEvent(new CustomEvent('mediahub:library-kind',{detail:k}))}
 function draw(){const cn={};ALL.forEach(x=>cn[x.kind]=(cn[x.kind]||0)+1);
- const T=[['','Все'],['video','Видео'],['audio','Аудио'],['manga','Манга'],['site','Сайты'],['game','Игры'],['link','Ссылки']];if(FK&&!cn[FK])FK='';
- $('chips').innerHTML=T.filter(([k])=>!k||cn[k]).map(([k,n])=>`<button class="chip${FK==k?' on':''}" onclick="setK('${k}')">${n}<span>${k?cn[k]:ALL.length}</span></button>`).join('');
+ const T=[['','Все'],['video','Видео'],['audio','Аудио'],['manga','Манга'],['site','Сайты'],['game','Игры'],['link','Ссылки']];
+ $('chips').innerHTML=T.filter(([k])=>!k||cn[k]||k==FK).map(([k,n])=>`<button class="chip${FK==k?' on':''}" aria-pressed="${FK==k}" onclick="setK('${k}')">${n}<span>${k?(cn[k]||0):ALL.length}</span></button>`).join('');
  const s=$('so').value,g=$('gb').value;L=ALL.filter(x=>!FK||x.kind==FK);
  L.sort((a,b)=>s=='title'?(a.title||'').localeCompare(b.title||'','ru'):s=='size'?b.size-a.size:b.id-a.id);
- if(!L.length){$('lib').innerHTML=$('q').value?`<div class="empty"><h2>Ничего не нашлось</h2><p>По запросу «${esc($('q').value)}» в библиотеке ничего нет.</p></div>`
-  :`<div class="empty"><div class="stack"><i></i><i></i><i></i></div><h2>Пока пусто</h2><p>Добавьте ссылку на видео, музыку, мангу или сайт — всё появится здесь с обложками.</p><div class="row"><button class="btn primary" onclick="openAdd()">Добавить ссылку</button><button class="btn quiet" onclick="scan()">Найти файлы в папке</button></div></div>`;return}
+ if(!L.length){$('lib').innerHTML=$('q').value?`<div class="empty"><h2>Ничего не нашлось</h2><p>По запросу «${esc($('q').value)}»${FK?' и выбранному типу':''} ничего не найдено.</p></div>`
+  :FK?`<div class="empty"><h2>В этом типе пока нет материалов</h2><button class="btn" onclick="setK('')">Показать все материалы</button></div>`:`<div class="empty"><div class="stack"><i></i><i></i><i></i></div><h2>Пока пусто</h2><p>Добавьте ссылку на видео, музыку, мангу или сайт — всё появится здесь с обложками.</p><div class="row"><button class="btn primary" onclick="openAdd()">Добавить ссылку</button><button class="btn quiet" onclick="scan()">Найти файлы в папке</button></div></div>`;return}
  const m={};L.forEach((x,i)=>{x.i=i;(m[g?(x[g]||'Без названия'):'']??=[]).push(x)});
  const card=x=>{const w=x.kind=='video'||x.kind=='audio',sub=g=='author'?(['Разное','Игры','Ссылки'].includes(x.topic)?'':x.topic):x.author;
   return `<article class="c"><a class="cv" ${x.kind=='game'?`href="#" onclick="rv(${x.i});return false" aria-label="Показать в папке: ${esc(x.title)}"`:`href="${x.open}"${x.kind=='manga'?'':' target="_blank" rel="noopener"'} aria-label="Открыть: ${esc(x.title)}"`}>${x.cover?`<img src="${x.cover}" alt="" loading="lazy">`:`<span class="ph">${I(IC[x.kind]||IC.video,38)}</span>`}${x.kind=='link'?'<span class="b l">Только ссылка</span>':x.missing?'<span class="b l">Файл не найден</span>':x.extra?`<span class="b l">${esc(x.extra)}</span>`:''}${x.kind=='link'?'':`<span class="b r">${B(x.size)}</span>`}</a>
