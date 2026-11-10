@@ -154,7 +154,7 @@ code{padding:1px 6px;border-radius:5px;background:var(--raise);font:12.5px ui-mo
  </section>
  <section id="v-inbox" class="hide"><h1>Входящие</h1><div id="inb"></div></section>
  <section id="v-downloads" class="hide">
-  <div class="row" style="justify-content:space-between;margin-bottom:6px"><h1 style="margin:0">Загрузки</h1><div class="row" style="margin:0"><span class="mu" id="tsp"></span><button class="btn quiet" id="clr">Очистить завершённые</button><button class="btn danger" id="cxl">Отменить всё</button></div></div>
+  <div class="row" style="justify-content:space-between;margin-bottom:6px"><h1 style="margin:0">Загрузки</h1><div class="row" style="margin:0"><span class="mu" id="tsp"></span><button class="btn quiet" id="clr">Очистить завершённые</button><button class="btn danger" id="cxl" disabled>Отменить всё</button></div></div>
   <div class="jobs" id="jobs"></div>
  </section>
  <section id="v-games" class="hide">
@@ -319,7 +319,7 @@ $('bar').onclick=()=>location.hash='#downloads';
 function drawJobs(){const sp=J.reduce((a,x)=>a+(x.speed||0),0);$('tsp').textContent=sp?B(sp)+'/с':'';
  $('jobs').innerHTML=J.length?[...J].reverse().map(x=>{const a=isA(x),c=x.status.startsWith('ошибка')?'err':x.status.startsWith('готово')||x.status.startsWith('сохранено')?'ok':x.status.startsWith('частично')?'part':'';
   return `<div class="job${a?'':' done'}"><div class="ji">${I(IC[x.kind]||IC.video,20)}</div><div style="min-width:0"><div class="jt" title="${esc(x.title)}">${esc(x.title)}</div><div class="js ${c}">${esc(x.status)}${x.speed?' · '+B(x.speed)+'/с':''}${x.eta?' · осталось '+ETA(x.eta):''}${x.daily?' · каждый день':''}</div><div class="bar"><i style="width:${x.pct}%"></i></div></div>${a?`<button class="x" aria-label="Отменить" onclick="api('/api/cancel',{id:${x.id}})">${I('<path d="M6 6l12 12M18 6 6 18"/>',18)}</button>`:'<span></span>'}</div>`}).join(''):`<div class="empty" style="margin-top:8vh"><h2>Загрузок нет</h2><p>Нажмите «Добавить», вставьте ссылку — здесь появятся ход и скорость.</p></div>`}
-$('clr').onclick=async()=>{await api('/api/clear',{});poll()};$('cxl').onclick=async()=>{await api('/api/cancel',{all:1});poll()};
+$('clr').onclick=async()=>{await api('/api/clear',{});poll()};
 /* --- диск --- */
 async function disk(){const d=await api('/api/disk');$('disk').innerHTML=`Свободно ${B(d.free)}<div class="meter"><i style="width:${Math.round(d.used*100/d.total)}%"></i></div>`}
 /* --- игры --- */

@@ -74,6 +74,25 @@ def run(root):
                 expect(page.get_by_label('Субтитры')).to_have_value('-1')
                 assert page.locator('video').evaluate('v => v.paused && !v.autoplay')
                 print('Edge: library → player, playback/seek, subtitles, persistence and C passed')
+                app.jobs[91] = {'id': 91, 'url': 'test', 'kind': 'video', 'status': 'в очереди',
+                                'title': 'Тест', 'cancel': False, 'pct': 0, 'speed': 0}
+                page.goto(f'http://127.0.0.1:{server.server_port}/#downloads', wait_until='domcontentloaded')
+                expect(page.locator('#v-downloads')).to_be_visible()
+                expect(page.locator('#jobs')).to_contain_text('Тест')
+                dialogs = []
+                def decline(dialog):
+                    dialogs.append(dialog.message)
+                    dialog.dismiss()
+                page.once('dialog', decline)
+                page.locator('#cxl').click()
+                assert len(dialogs) == 1 and 'заданий: 1' in dialogs[0]
+                assert not app.jobs[91]['cancel']
+                page.once('dialog', lambda dialog: dialog.accept())
+                page.locator('#cxl').click()
+                page.wait_for_function("document.querySelector('#toastBox').textContent.includes('Отмена запрошена')")
+                assert app.jobs[91]['cancel'] and app.jobs[91]['status'] == 'отменено'
+                expect(page.locator('#cxl')).to_be_focused()
+                print('Edge: cancel confirmation, refusal and confirmed cancellation passed')
             finally:
                 browser.close()
     finally:
