@@ -10,7 +10,8 @@
 - Добавлен тест с имитацией yt-dlp и временной БД. Эта проверка не подтверждает работу
   с реальными сайтами, ошибками, которые загрузчик не сообщает, или полноту скачивания.
   Локально прошли 146 Python-тестов (6 Windows-only пропущены), 42 Node-теста,
-  compileall, синтаксис JS, GameSweep selftest 73/73 и `git diff --check`; Windows CI ожидается.
+  compileall, синтаксис JS, GameSweep selftest 73/73 и `git diff --check`. Windows CI
+  run 42842413358 для 7bc92d7 прошёл Python/Node, Edge smoke, сборку EXE и packaged smoke.
 
 ## UX: отмена и вкладки — в работе
 
