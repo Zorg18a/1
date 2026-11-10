@@ -6,7 +6,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from storage.database import open_database, execute
 from storage import cover_cache, cover_download, game_tags, incoming_downloads
-from core import gamelib
+from core import gamelib, byte_range
 from core.classify import classify
 from core.game_sources import quick_game_request
 from core.game_tags import save_tags_request
@@ -860,17 +860,17 @@ class H(BaseHTTPRequestHandler):
     def file(self, p):
         p = Path(p)
         if not p.is_file(): return self.send_error(404)
-        size = p.stat().st_size; a, b = 0, size - 1; m = re.match(r'bytes=(\d*)-(\d*)', self.headers.get('Range') or '')
-        if m:
-            if m.group(1): a = int(m.group(1))
-            if m.group(2): b = min(int(m.group(2)), size - 1)
-        self.send_response(206 if m else 200)
-        self.send_header('Content-Type', mimetypes.guess_type(p.name)[0] or 'application/octet-stream')
-        self.send_header('Accept-Ranges', 'bytes'); self.send_header('Content-Length', b - a + 1)
-        if m: self.send_header('Content-Range', f'bytes {a}-{b}/{size}')
-        self.end_headers()
         with open(p, 'rb') as f:
-            f.seek(a); left = b - a + 1
+            size = os.fstat(f.fileno()).st_size
+            headers = self.headers.get_all('Range', []); choice = byte_range.select_range(headers[0], size) if len(headers) == 1 and 'If-Range' not in self.headers else None
+            if choice is byte_range.UNSATISFIABLE:
+                self.send_response(416); self.send_header('Content-Range', f'bytes */{size}'); self.send_header('Content-Length', 0); self.send_header('Accept-Ranges', 'bytes'); self.end_headers(); return
+            a, b = choice if choice is not None else (0, size - 1); f.seek(a)
+            self.send_response(206 if choice is not None else 200)
+            self.send_header('Content-Type', mimetypes.guess_type(p.name)[0] or 'application/octet-stream')
+            self.send_header('Accept-Ranges', 'bytes'); self.send_header('Content-Length', b - a + 1)
+            if choice is not None: self.send_header('Content-Range', f'bytes {a}-{b}/{size}')
+            self.end_headers(); left = b - a + 1
             while left > 0:
                 c = f.read(min(1 << 20, left))
                 if not c: break
