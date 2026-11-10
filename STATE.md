@@ -88,7 +88,9 @@
   проверки отрисовки в синтетическом DOM/VM и jsdom не заменяют реальный браузер и NVDA.
   Ссылка скрыта для отсутствующих файлов и ID за пределами безопасных целых JavaScript.
   Linux: 142 Python-теста (6 Windows-only пропущены), 34 Node-теста, compileall,
-  синтаксис и импорты, source smoke и GameSweep 73/73 прошли. Windows CI ожидается.
+  синтаксис и импорты, source smoke и GameSweep 73/73 прошли. Windows CI run
+  42806516850 для c97326b: тесты, сборка EXE и packaged smoke прошли; ручная проверка
+  Windows, браузера и NVDA не выполнялась.
 
 ## Исходное состояние
 
