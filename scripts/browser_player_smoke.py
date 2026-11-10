@@ -133,6 +133,28 @@ def run(root):
                 assert app.jobs[91]['cancel'] and app.jobs[91]['status'] == 'отменено'
                 expect(page.locator('#cxl')).to_be_focused()
                 print('Edge: cancel confirmation, refusal and confirmed cancellation passed')
+                batch, _ = app.inbox_add([{'id': 10, 'url': 'https://example.org/game'},
+                                          {'id': 11, 'url': 'https://example.org/list'}], False, 'test')
+                rows = app.sql('select id from inbox where batch=? order by id', (batch,))
+                app.sql("update inbox set kind='game',action='gamecard' where id=?", (rows[0]['id'],))
+                app.sql("update inbox set kind='playlist',action='track' where id=?", (rows[1]['id'],))
+                page.goto(f'http://127.0.0.1:{server.server_port}/#inbox', wait_until='domcontentloaded')
+                expect(page.locator('#inb .batch')).to_have_count(1)
+                expect(page.locator('#inb')).to_contain_text('Вкладка останется открытой')
+                page.get_by_role('button', name='Только сохранить ссылки').click()
+                expect(page.locator('#ibStatus')).to_contain_text('Закрытие вкладок не запрошено')
+                expect(page.locator('#ibStatus')).to_contain_text('отслеживание не отключается')
+                assert len(app.jobs) == 1
+                assert all(r['status'] == 'done' for r in app.sql('select status from inbox where batch=?', (batch,)))
+                assert all(not r['tracked'] for r in app.sql("select tracked from items where src like 'https://example.org/%'"))
+                app.inbox_add([{'id': 12, 'url': 'https://example.org/failure'}], False, 'test')
+                page.reload()
+                expect(page.get_by_role('button', name='Только сохранить ссылки')).to_be_visible()
+                page.route('**/api/inbox/confirm', lambda route: route.abort())
+                page.get_by_role('button', name='Только сохранить ссылки').click()
+                expect(page.locator('#ibStatus')).to_contain_text('Некоторые строки могли уже обработаться')
+                expect(page.get_by_role('button', name='Только сохранить ссылки')).to_be_enabled()
+                print('Edge: inbox links-only, close opt-in and uncertain network result passed')
             finally:
                 browser.close()
     finally:

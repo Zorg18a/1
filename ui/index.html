@@ -152,7 +152,7 @@ code{padding:1px 6px;border-radius:5px;background:var(--raise);font:12.5px ui-mo
   </div>
   <div id="lib"></div>
  </section>
- <section id="v-inbox" class="hide"><h1>Входящие</h1><div id="inb"></div></section>
+ <section id="v-inbox" class="hide"><h1>Входящие</h1><p id="ibStatus" role="status" hidden></p><div id="inb"></div></section>
  <section id="v-downloads" class="hide">
   <div class="row" style="justify-content:space-between;margin-bottom:6px"><h1 style="margin:0">Загрузки</h1><div class="row" style="margin:0"><span class="mu" id="tsp"></span><button class="btn quiet" id="clr">Очистить завершённые</button><button class="btn danger" id="cxl" disabled>Отменить всё</button></div></div>
   <div class="jobs" id="jobs"></div>
@@ -382,7 +382,7 @@ let sv;function save(){clearTimeout(sv);sv=setTimeout(async()=>{const b={};SET.f
 SET.forEach(k=>{const e=$('s_'+k);e.addEventListener('change',save);if(e.type!='checkbox'&&e.tagName=='INPUT')e.addEventListener('input',save)});
 addEventListener('keydown',e=>{if(e.key=='/'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){e.preventDefault();location.hash='#library';$('q').focus()}});
 /* --- расширение: подключение и входящие --- */
-let EXTD='',LASTIB='',IB={batches:[]},CH={},FL={},CLS={};
+let EXTD='',LASTIB='',IB={batches:[]},CH={},FL={},CLS={},SENDING=new Set();
 const KN={manga:'Манга',video:'Видео',playlist:'Плейлист',audio:'Музыка',podcast:'Подкаст',game:'Игра',unknown:'Неизвестно'};
 const AL={gamecard:'Добавить игру в библиотеку',download:'Скачать',track:'Следить за обновлениями',link:'Только сохранить ссылку',site:'Скачать сайт офлайн',skip:'Пропустить',known:'Уже в библиотеке'};
 const ACTS={manga:['download','track','link','skip'],video:['download','link','skip'],playlist:['download','track','link','skip'],audio:['download','link','skip'],podcast:['link','track','skip'],game:['gamecard','link','skip'],unknown:['link','site','skip']};
@@ -396,9 +396,9 @@ $('extList').onclick=async e=>{const b=e.target.closest('[data-forget]');if(!b)r
 async function loadInbox(){const d=await api('/api/inbox'),s=JSON.stringify(d),a=document.activeElement;if(s==LASTIB)return;if(LASTIB&&a&&a.closest&&a.closest('#v-inbox')&&/SELECT|INPUT/.test(a.tagName))return;LASTIB=s;IB=d;drawInbox()}
 const stt=r=>CH[r.id]??={on:r.action!='skip',action:r.action,kind:r.kind};
 function sumOf(b){let on=0,dl=0,lk=0,kn=0,cl=0;const close=CLS[b.batch]??(b.rows[0]&&b.rows[0].close);b.rows.filter(r=>r.status=='pending').forEach(r=>{const s=stt(r),a=s.on?s.action:'skip';if(a=='skip')return;on++;if(a=='download'||a=='site'||a=='gamecard')dl++;else if(a=='known')kn++;else lk++;if(close)cl++});return{on,dl,lk,kn,cl}}
-function sumText(b){const m=sumOf(b);return`Выбрано ${m.on} из ${b.rows.length} · скачать ${m.dl} · сохранить ссылками ${m.lk}${m.kn?` · уже в библиотеке ${m.kn}`:''} · закроется вкладок: ${m.cl}`}
+function sumText(b){const m=sumOf(b);return`Выбрано ${m.on} из ${b.rows.length} · скачать ${m.dl} · сохранить ссылками ${m.lk}${m.kn?` · уже в библиотеке ${m.kn}`:''} · выбрано для закрытия: ${m.cl}`}
 function drawInbox(){const el=$('inb');
- if(!IB.batches.length){el.innerHTML=`<div class="empty"><div class="stack"><i></i><i></i><i></i></div><h2>Входящие пусты</h2><p>Сюда приходят вкладки из браузера. Вы выбираете, что сохранить и что скачать, а вкладки закрываются сами, когда материал уже на диске.</p><ol class="mu"><li>Chrome или Edge: откройте <code>chrome://extensions</code>, включите «Режим разработчика» и нажмите «Загрузить распакованное расширение».</li><li>Выберите папку <code>${esc(EXTD)}</code>. Для Firefox инструкция в «Настройки → Расширение для браузера».</li><li>Нажмите значок MediaHub на панели браузера, выберите вкладки и «Показать список в приложении».</li></ol></div>`;return}
+ if(!IB.batches.length){el.innerHTML=`<div class="empty"><div class="stack"><i></i><i></i><i></i></div><h2>Входящие пусты</h2><p>Сюда приходят вкладки из браузера. Вы выбираете действия и отдельно разрешаете закрытие вкладок.</p><ol class="mu"><li>Chrome или Edge: откройте <code>chrome://extensions</code>, включите «Режим разработчика» и нажмите «Загрузить распакованное расширение».</li><li>Выберите папку <code>${esc(EXTD)}</code>. Для Firefox инструкция в «Настройки → Расширение для браузера».</li><li>Нажмите значок MediaHub на панели браузера, выберите вкладки и «Показать список в приложении».</li></ol></div>`;return}
  el.innerHTML=IB.batches.map(b=>{const pend=b.pending,f=FL[b.batch]||'',rows=b.rows,k=r=>pend&&r.status=='pending'?stt(r).kind:r.kind;
   const cnt={};rows.forEach(r=>cnt[k(r)]=(cnt[k(r)]||0)+1);const fresh=rows.filter(r=>r.state=='new').length,have=rows.filter(r=>r.state=='downloaded'||r.state=='link'||r.state=='missing').length;
   const chips=[['','Все',rows.length],...Object.keys(cnt).map(x=>[x,KN[x]||x,cnt[x]]),['s:new','Новое',fresh],['s:have','Уже есть',have]].filter(c=>c[2]||!c[0]);
@@ -407,22 +407,19 @@ function drawInbox(){const el=$('inb');
   const row=r=>{const hide=vis(r)?'':' hide';
    if(r.status!='pending')return `<div class="ir done${hide}"><span class="kc">${esc(KN[r.kind]||r.kind)}</span><div class="im"><a class="it" href="${esc(r.url)}" target="_blank" rel="noopener" title="${esc(r.title)}">${esc(r.title)}</a><div class="fate ${r.status=='kept'?'kept':r.status=='closed'||r.status=='done'?'ok':''}">${esc(r.fate)}</div></div>${r.status=='closed'?`<button class="btn quiet" data-do="reopen" data-id="${r.id}" data-url="${esc(r.url)}">Вернуть вкладку</button>`:'<span></span>'}</div>`;
    const s=stt(r),opts=[...ACTS[s.kind]];if(r.state=='downloaded'||r.state=='card')opts.unshift('known');if(!opts.includes(s.action))s.action=(r.state=='downloaded'||r.state=='card')?'known':DEF[s.kind];
-   return `<div class="ir${s.on?'':' off'}${hide}" data-id="${r.id}"><input type="checkbox" class="ick" aria-label="Включить в план" ${s.on?'checked':''}><div class="im"><a class="it" href="${esc(r.url)}" target="_blank" rel="noopener" title="${esc(r.title)}">${esc(r.title)}</a><div class="fate">${esc(r.host)} · ${esc(r.state_text)}</div><div class="fate ${s.on&&s.action!='skip'?'':'kept'}">${s.on&&s.action!='skip'&&(CLS[b.batch]??r.close)?'Вкладка закроется после обработки':'Вкладка останется открытой'}</div></div>
+   return `<div class="ir${s.on?'':' off'}${hide}" data-id="${r.id}"><input type="checkbox" class="ick" aria-label="Включить в план" ${s.on?'checked':''}><div class="im"><a class="it" href="${esc(r.url)}" target="_blank" rel="noopener" title="${esc(r.title)}">${esc(r.title)}</a><div class="fate">${esc(r.host)} · ${esc(r.state_text)}</div><div class="fate ${s.on&&s.action!='skip'?'':'kept'}">${s.on&&s.action!='skip'&&(CLS[b.batch]??r.close)?'Вкладка может закрыться после успешной обработки':'Вкладка останется открытой'}</div></div>
     <select class="ik" aria-label="Тип материала">${Object.keys(KN).map(x=>`<option value="${x}" ${x==s.kind?'selected':''}>${KN[x]}</option>`).join('')}</select>
     <select class="ia" aria-label="Что сделать">${opts.map(a=>`<option value="${a}" ${a==s.action?'selected':''}>${AL[a]}</option>`).join('')}</select></div>`};
   return `<section class="batch" data-b="${b.batch}"><div class="bh"><h2>Разбор: ${rows.length} вкладок, ${t}</h2>${pend?'':`<button class="btn quiet" data-do="dismiss" data-b="${b.batch}">Убрать из списка</button>`}</div>
    <div class="chips" style="margin-bottom:6px">${chips.map(c=>`<button class="chip${f==c[0]?' on':''}" data-do="filter" data-b="${b.batch}" data-f="${c[0]}">${c[1]}<span>${c[2]}</span></button>`).join('')}</div>
    <div class="rows">${rows.map(row).join('')}</div>
-   ${pend?`<div class="bbar"><div class="bsum">${sumText(b)}</div><label class="chkrow"><input type="checkbox" class="cls" data-b="${b.batch}" ${(CLS[b.batch]??rows[0].close)?'checked':''}> Закрывать обработанные вкладки</label><button class="btn" data-do="links" data-b="${b.batch}">Только сохранить ссылки</button><button class="btn primary" data-do="confirm" data-b="${b.batch}">Добавить в очередь</button></div>`:''}</section>`}).join('')}
+   ${pend?`<div class="bbar"><div class="bsum">${sumText(b)}</div><label class="chkrow"><input type="checkbox" class="cls" data-b="${b.batch}" ${(CLS[b.batch]??rows[0].close)?'checked':''}> Закрывать обработанные вкладки</label><button class="btn" data-do="links" data-b="${b.batch}" ${SENDING.size?'disabled':''}>Только сохранить ссылки</button><button class="btn primary" data-do="confirm" data-b="${b.batch}" ${SENDING.size?'disabled':''}>Добавить в очередь</button></div>`:''}</section>`}).join('')}
 function updSum(b){const bt=IB.batches.find(x=>x.batch==b),s=document.querySelector(`.batch[data-b="${b}"] .bsum`);if(s&&bt)s.textContent=sumText(bt)}
-async function sendPlan(b,onlyLinks){const bt=IB.batches.find(x=>x.batch==b),close=!!(CLS[b]??bt.rows[0].close);
- const rows=bt.rows.filter(r=>r.status=='pending').map(r=>{const s=stt(r);let a=s.on?s.action:'skip';if(onlyLinks&&(a=='download'||a=='site'))a=ACTS[s.kind].includes('link')?'link':'skip';return{id:r.id,action:a,kind:s.kind}});
- const r=await api('/api/inbox/confirm',{batch:b,close,rows});LASTIB='';loadInbox();poll();
- toast(r.download?`В очереди: ${r.download}. Ссылок сохранено: ${r.links}. Вкладки закроются по мере готовности`:`Ссылок сохранено: ${r.links}`,r.download?'Загрузки':'',()=>location.hash='#downloads')}
+function sendPlan(b,links){if(!window.createInboxHandler){$('ibStatus').hidden=false;$('ibStatus').textContent='Отправка недоступна. Перезагрузите страницу.';return}window.createInboxHandler({getBatch:b=>IB.batches.find(x=>x.batch==b),getClose:(b,bt)=>CLS[b]??bt.rows[0].close,state:stt,sending:SENDING,redraw:drawInbox,status:m=>{$('ibStatus').hidden=false;$('ibStatus').textContent=m},refresh:async()=>{LASTIB='';await loadInbox();await poll()},submit:window.submitInboxPlan})(b,links)}
 $('inb').addEventListener('change',e=>{const row=e.target.closest('.ir[data-id]'),bt=e.target.closest('.batch');if(!bt)return;const b=bt.dataset.b;
  if(e.target.classList.contains('cls')){CLS[b]=e.target.checked;drawInbox();return}
  if(!row)return;const r=IB.batches.flatMap(x=>x.rows).find(x=>x.id==row.dataset.id),s=stt(r);
- const fate=()=>{const f=row.querySelector('.im .fate:last-child'),will=s.on&&s.action!='skip'&&(CLS[b]??r.close);f.textContent=will?'Вкладка закроется после обработки':'Вкладка останется открытой';f.classList.toggle('kept',!will)};
+ const fate=()=>{const f=row.querySelector('.im .fate:last-child'),will=s.on&&s.action!='skip'&&(CLS[b]??r.close);f.textContent=will?'Вкладка может закрыться после успешной обработки':'Вкладка останется открытой';f.classList.toggle('kept',!will)};
  if(e.target.classList.contains('ick')){s.on=e.target.checked;row.classList.toggle('off',!s.on);fate();updSum(b)}
  if(e.target.classList.contains('ia')){s.action=e.target.value;fate();updSum(b)}
  if(e.target.classList.contains('ik')){s.kind=e.target.value;s.action=(r.state=='downloaded'||r.state=='card')?'known':DEF[s.kind];drawInbox();const n=document.querySelector(`.ir[data-id="${r.id}"] .ik`);n&&n.focus()}});

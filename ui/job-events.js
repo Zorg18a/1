@@ -17,6 +17,10 @@ export function createJobTracker() {
 }
 
 export function setupJobEvents() {
+  const note = document.createElement('p');
+  note.className = 'mu';
+  note.textContent = 'Очередь и история заданий хранятся в памяти и исчезают при перезапуске MediaHub. Готовые и частичные файлы могут остаться на диске; автоматическое восстановление заданий пока недоступно.';
+  document.querySelector('#jobs').before(note);
   const track = createJobTracker();
   window.addEventListener('mediahub:jobs', event => {
     if (!Array.isArray(event.detail)) return;

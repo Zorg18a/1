@@ -6,7 +6,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from storage.database import open_database, execute
 from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files
-from core import gamelib, byte_range, media_outcome, delete_guard
+from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock
 from core.classify import classify
 from core.game_sources import quick_game_request
 from core.game_tags import save_tags_request
@@ -627,10 +627,11 @@ def inbox_add(tabs, close, browser):
             (batch, t.get('id'), t.get('windowId'), url, str(t.get('title') or url)[:300], c['kind'], c['host'], action, state, lib, 1 if close else 0, 'pending')); n += 1
     return batch, n
 def finish_row(rid, close): sql('update inbox set status=?, cmd=? where id=?', ('closing', 'close', rid) if close else ('done', '', rid))
-def inbox_confirm(d):  # человек подтвердил план: ссылки сохраняются, загрузки уходят в очередь, пропущенное остаётся как есть
+@inbox_lock.serialize_confirm
+def inbox_confirm(d):  # подтверждение не атомарно
     rows = {r['id']: r for r in sql('select * from inbox where batch=?', (d['batch'],))}; close = bool(d.get('close')); nd = nl = 0
     for x in d.get('rows', []):
-        r = rows.get(x.get('id'))
+        r = rows.pop(x.get('id'), None)
         if not r or r['status'] != 'pending': continue
         kind = x.get('kind') if x.get('kind') in ACT else r['kind']; a = x.get('action'); a = a if (a in ACT[kind] or (a == 'known' and r['state'] in ('downloaded', 'card'))) else 'skip'
         sql('update inbox set kind=?, action=?, close_tab=? where id=?', (kind, a, 1 if close else 0, r['id']))
@@ -639,14 +640,14 @@ def inbox_confirm(d):  # человек подтвердил план: ссыл�
         c = classify(r['url'])
         if a == 'gamecard':
             jid = new_job(c['key'] or r['url'], 'gamecard', title=r['title']); sql("update inbox set status='queued', jobs=? where id=?", (json.dumps([jid]), r['id'])); nd += 1; continue
-        add_link(r['title'], c['key'], r['url'], r['host'], 1 if (a == 'track' or kind == 'playlist') else 0)
+        add_link(r['title'], c['key'], r['url'], r['host'], 1 if (a == 'track' or (kind == 'playlist' and a == 'download')) else 0)
         if a in ('link', 'track'): finish_row(r['id'], close); nl += 1; continue
         jk = 'site' if a == 'site' else JOBK.get(kind)
         if jk == 'mangaurl': jk = manga_kind()
         if not jk: sql("update inbox set status='kept', reason=? where id=?", ('скачивание с этого источника пока недоступно', r['id'])); continue
         jid = new_job(c.get('norm') or r['url'], jk, title=r['title']); sql("update inbox set status='queued', jobs=? where id=?", (json.dumps([jid]), r['id'])); nd += 1
     return {'download': nd, 'links': nl}
-def settle():  # смотрим, чем закончились задания, и решаем судьбу вкладок: закрыть только после успеха
+def settle():  # закрывать только после успеха
     for r in sql("select * from inbox where status='queued'"):
         js_ = json.loads(r['jobs'] or '[]'); sts = [jobs[j]['status'] for j in js_ if j in jobs]
         if not js_ or len(sts) < len(js_):  # после перезапуска нельзя подтвердить успешность отсутствующих заданий
@@ -665,8 +666,8 @@ def settle_loop():
 def inbox_view(r):
     st = r['status']; act = r['action']
     st_txt = {'new': 'Новое', 'dup': 'Такая же вкладка уже есть в этом списке', 'link': 'Уже в библиотеке · только ссылка', 'missing': 'Уже в библиотеке · файл не найден', 'downloaded': 'Уже в библиотеке · скачано', 'card': 'Уже в библиотеке игр · не скачано'}.get(r['state'], '')
-    fate = {'pending': 'Вкладка закроется после обработки' if (r['close_tab'] and act != 'skip') else 'Вкладка останется открытой', 'queued': 'Загружается' + (', вкладка закроется после завершения' if r['close_tab'] else ''),
-            'closing': 'Закрываю вкладку…', 'closed': 'Вкладка закрыта · источник сохранён в библиотеке', 'done': 'Готово · источник сохранён в библиотеке', 'skipped': 'Пропущено, вкладка осталась открытой',
+    fate = {'pending': 'Вкладка может закрыться после успешной обработки' if (r['close_tab'] and act != 'skip') else 'Вкладка останется открытой', 'queued': 'Задание в очереди или выполняется' + (', вкладка может закрыться после успеха' if r['close_tab'] else ''),
+            'closing': 'Ожидается ответ браузера на запрос закрытия…', 'closed': 'Вкладка закрыта · источник сохранён в библиотеке', 'done': 'Готово · источник сохранён в библиотеке', 'skipped': 'Пропущено, вкладка осталась открытой',
             'reopened': 'Вкладка возвращена', 'kept': 'Вкладка осталась открытой: ' + (r['reason'] or '')}.get(st, '')
     return {'id': r['id'], 'title': r['title'], 'url': r['url'], 'host': r['host'], 'kind': r['kind'], 'action': act, 'actions': ACT.get(r['kind'], []) + (['known'] if r['state'] in ('downloaded', 'card') else []),
             'state': r['state'], 'state_text': st_txt, 'status': st, 'fate': fate, 'close': bool(r['close_tab'])}
@@ -675,7 +676,6 @@ def inbox_state():
     for b in sql('select batch, min(created) c, count(*) n from inbox group by batch order by batch desc limit 8'):
         rows = sql('select * from inbox where batch=? order by id', (b['batch'],)); out.append({'batch': b['batch'], 'created': b['c'], 'rows': [inbox_view(r) for r in rows], 'pending': any(r['status'] == 'pending' for r in rows)})
     return {'batches': out}
-
 # ---------- задания для расширения: манга в браузере пользователя ----------
 XT, XTL, EXT_SEEN = {}, threading.Lock(), [0.0]
 def ext_online(): return bool(EXT) and time.time() - EXT_SEEN[0] < 40
@@ -944,7 +944,7 @@ class H(BaseHTTPRequestHandler):
     def get(self):
         u = urlparse(self.path); p = unquote(u.path); qs = {k: v[0] for k, v in parse_qs(u.query).items()}
         if p.startswith(('/sub/', '/api/subtitles/', '/api/player-preview/')): return player_preview.get(self, p, sql) if p.startswith('/api/player-preview/') else media_subtitles.get(self, p, sql)
-        if p == '/' or p in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/cancel-all.js', '/ui/delete-dialog.js', '/ui/game-library.js', '/ui/library-view.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js', '/ui/player-keys.js', '/ui/player-subtitles.js', '/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
+        if p == '/' or p in ('/ui/app.js', '/ui/inbox-submit.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/cancel-all.js', '/ui/delete-dialog.js', '/ui/game-library.js', '/ui/library-view.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js', '/ui/player-keys.js', '/ui/player-subtitles.js', '/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
         if p == '/api/jobs':
             now = time.time(); keys = ('id', 'url', 'kind', 'status', 'pct', 'title', 'eta', 'daily', 'start_at')
             return self.js([dict({k: j.get(k) for k in keys}, speed=(j.get('speed') or 0) if now - j.get('_ts', now) < 8 else 0) for j in jobs.values()])

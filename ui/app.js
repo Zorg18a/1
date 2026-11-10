@@ -1,3 +1,4 @@
+import './inbox-submit.js';
 import { setupPreferences } from './preferences.js';
 import { setupNotifications } from './notifications.js';
 import { setupHotkeys } from './hotkeys.js';

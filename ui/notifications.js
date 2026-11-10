@@ -19,7 +19,7 @@ export function setupNotifications() {
   const dialog = document.createElement('dialog');
   dialog.setAttribute('aria-labelledby', 'notify-title');
   dialog.innerHTML = `<div class="dh"><h2 id="notify-title">Уведомления за эту сессию</h2></div>
-    <div class="db"><p id="notify-empty">Событий пока нет.</p><ol class="notify-list"></ol></div>
+    <div class="db"><p class="mu">Журнал хранится только на этой странице и очищается при её перезагрузке или закрытии. Доступны последние 200 событий.</p><p id="notify-empty">Событий пока нет.</p><ol class="notify-list"></ol></div>
     <div class="df"><button class="btn" id="notify-clear">Очистить журнал</button><button class="btn primary" id="notify-close">Закрыть</button></div>`;
   document.body.append(dialog);
   const list = dialog.querySelector('.notify-list');
