@@ -3,12 +3,21 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../ui/game-library.js', import.meta.url), 'utf8');
-const { gameLabels, sizeMatches, releaseTime, compareGames } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+const { gameLabels, searchMatches, sizeMatches, releaseTime, compareGames } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 test('tags, site genres and engine are combined without duplicate labels', () => {
   assert.deepEqual(gameLabels({ genres: ['RPG', 'Drama'], tags: ['rpg', 'Свои', '<b>'], engine: 'RenPy' }),
     ['RPG', 'Drama', 'Свои', '<b>', 'RenPy']);
   assert.deepEqual(gameLabels({}), []);
+});
+
+test('game search matches joined and spaced names and keeps meaningful digits', () => {
+  for (const [text, query] of [['College Traits', 'CollegeTraits'], ['CollegeTraits', 'College Traits'],
+    ['College_Traits', 'college-traits'], ['Школа Игр', 'ШколаИгр']]) assert.equal(searchMatches(text, query), true);
+  assert.equal(searchMatches('CollegeTraits', 'College Traits 2'), false);
+  assert.equal(searchMatches('abc', '---'), false);
+  assert.equal(searchMatches('abc---def', '---'), true);
+  assert.equal(searchMatches('abc', ''), true);
 });
 
 test('size filters use binary units and treat zero as unknown', () => {

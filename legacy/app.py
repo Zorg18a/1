@@ -5,7 +5,7 @@ from urllib.parse import urlparse, urljoin, unquote, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from storage.database import open_database, execute
-from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files
+from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search
 from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock
 from core.classify import classify
 from core.game_sources import quick_game_request
@@ -786,6 +786,7 @@ def find_game(key, title=''):  # сначала точный ключ, зате�
     best, score = None, 0.0
     for x in sql("select * from items where kind='game'"):
         k = x['url'][5:] if str(x['url']).startswith('game:') else name_key(x['title'])
+        if re.findall(r'\d+', k) != re.findall(r'\d+', key): continue  # разные номера
         s = difflib.SequenceMatcher(None, k, key).ratio()
         if s > score: best, score = x, s
     return best if score >= 0.9 else None
@@ -959,9 +960,8 @@ class H(BaseHTTPRequestHandler):
         if p == '/api/preview':
             r = dict(prev[qs['t']]); r['pages'] = r.get('pages', [])[int(qs.get('from', 0)):]; r['free'] = shutil.disk_usage(root('Video')).free; return self.js(r)
         if p == '/api/library':
-            q = '%' + qs.get('q', '') + '%'; k = qs.get('kind', '')
             out = []; tag_map = game_tags.all_tags(db, lock)
-            for r in sql("select * from items where (title like ? or author like ? or topic like ?) and (kind=? or ?='') order by id desc", (q, q, q, k, k)):
+            for r in library_search.find(db, lock, qs.get('q', ''), qs.get('kind', '')):
                 d = dict(r); d['missing'] = not Path(r['path']).exists(); d['cover'] = f"/t/{r['id']}" if r['thumb'] and (r['kind'] != 'game' or Path(r['thumb']).is_file()) else ''; d['extra'] = manga_extra(r)
                 d['open'] = f"/s/{r['id']}/" + os.path.relpath(r['path'], r['root']).replace(os.sep, '/') if r['kind'] == 'site' else f"/m/{r['id']}" if r['kind'] == 'manga' else f"/f/{r['id']}"
                 if r['kind'] == 'game': d['g'] = game_view(r); d['g']['tags'] = tag_map.get(r['id'], []); d['missing'] = False

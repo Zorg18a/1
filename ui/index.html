@@ -250,7 +250,7 @@ function route(){cur=V.includes(location.hash.slice(1))?location.hash.slice(1):'
 addEventListener('hashchange',route);
 /* --- toast --- */
 function toast(t,label,fn){window.dispatchEvent(new CustomEvent('mediahub:notify',{detail:{message:String(t),label,action:fn}}))}
-/* --- библиотека --- */
+/* библиотека */
 let ALL=[],FK='',L=[];
 async function lib(){ALL=await api('/api/library?q='+encodeURIComponent($('q').value));draw()}
 function setK(k){FK=k;draw();window.dispatchEvent(new CustomEvent('mediahub:library-kind',{detail:k}))}
@@ -329,12 +329,12 @@ const initials=t=>String(t).split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0])
 const ago=t=>t?new Date(t*1000).toLocaleDateString('ru'):'никогда';
 async function loadGames(){GA=(await api('/api/library?q=')).filter(x=>x.kind=='game');drawGames();if(GOPEN){const x=GA.find(y=>y.id==GOPEN);if(x){fillPanel(x);window.dispatchEvent(new CustomEvent('mediahub:game-panel',{detail:x}))}}}
 function gdraw(x){const g=x.g;return `<article class="gcard" tabindex="0" data-id="${x.id}" aria-label="${esc(x.title)}: ${g.downloaded?'скачано':'не скачано'}"><div class="gart">${x.cover?`<img src="${x.cover}" alt="" loading="lazy">`:`<div class="gph" style="background:linear-gradient(155deg,hsl(${hue(x.title)} 45% 32%),hsl(${(hue(x.title)+50)%360} 40% 14%))">${esc(initials(x.title))}</div>`}${g.update?'<span class="gup">Обновление</span>':''}<span class="gdot ${g.downloaded?'on':'off'}" title="${g.downloaded?'Скачано':'Не скачано'}">${g.downloaded?I('<path d="M5 12.5l4.5 4.5L19 7.5"/>',16).replace('stroke-width="1.8"','stroke-width="3"'):''}</span></div><h3 class="gname" title="${esc(x.title)}">${esc(x.title)}</h3><p class="gsub">${esc(g.downloaded?(g.version||'скачано'):(g.latest||'не скачано'))}${g.developer?' · '+esc(g.developer):''}</p></article>`}
-function drawGames(){const q=$('gq').value.trim().toLowerCase(),cnt={all:GA.length,dl:0,nodl:0,upd:0},U=window.MediaHubGameLibrary||{gameLabels:g=>[...(g.genres||[]),...(g.tags||[]),g.engine||''].filter(Boolean),sizeMatches:()=>true,compareGames:(a,b)=>Number(!!b.g.update)-Number(!!a.g.update)||a.title.localeCompare(b.title,'ru')};GA.forEach(x=>{x.g.downloaded?cnt.dl++:cnt.nodl++;if(x.g.update)cnt.upd++});
+function drawGames(){const q=$('gq').value.trim().toLowerCase(),cnt={all:GA.length,dl:0,nodl:0,upd:0},U=window.MediaHubGameLibrary||{gameLabels:g=>[...(g.genres||[]),...(g.tags||[]),g.engine||''].filter(Boolean),searchMatches:(s,q)=>s.toLowerCase().includes(q),sizeMatches:()=>true,compareGames:(a,b)=>Number(!!b.g.update)-Number(!!a.g.update)||a.title.localeCompare(b.title,'ru')};GA.forEach(x=>{x.g.downloaded?cnt.dl++:cnt.nodl++;if(x.g.update)cnt.upd++});
  $('gchips').innerHTML=Object.keys(GFILT).map(k=>`<button class="chip${GF==k?' on':''}" data-gf="${k}">${GFILT[k]}<span>${cnt[k]}</span></button>`).join('');
  const gc=Object.create(null);GA.forEach(x=>U.gameLabels(x.g).forEach(t=>{const k=t.toLowerCase();gc[k]=(gc[k]||[t,0]);gc[k][1]++}));GGEN.forEach(k=>{if(!gc[k])gc[k]=[k,0]});
  $('genl').innerHTML=Object.keys(gc).sort((a,b)=>gc[b][1]-gc[a][1]||a.localeCompare(b)).map(k=>`<button class="gchip${GGEN.has(k)?' on':''}" data-gen="${esc(k)}" aria-pressed="${GGEN.has(k)}">${esc(gc[k][0])} ${gc[k][1]}</button>`).join('')||'<span class="mu">Жанры и теги пока не добавлены</span>';
  $('gens').textContent=GGEN.size?`Жанры и теги (${GGEN.size})`:'Жанры и теги';
- let L2=GA.filter(x=>GF=='all'||(GF=='dl'&&x.g.downloaded)||(GF=='nodl'&&!x.g.downloaded)||(GF=='upd'&&x.g.update)).filter(x=>!q||(x.title+' '+x.g.developer+' '+U.gameLabels(x.g).join(' ')).toLowerCase().includes(q)).filter(x=>[...GGEN].every(k=>U.gameLabels(x.g).some(t=>t.toLowerCase()==k))).filter(x=>U.sizeMatches(x.size,$('gsize').value));
+ let L2=GA.filter(x=>GF=='all'||(GF=='dl'&&x.g.downloaded)||(GF=='nodl'&&!x.g.downloaded)||(GF=='upd'&&x.g.update)).filter(x=>U.searchMatches(x.title+' '+x.g.developer+' '+U.gameLabels(x.g).join(' '),q)).filter(x=>[...GGEN].every(k=>U.gameLabels(x.g).some(t=>t.toLowerCase()==k))).filter(x=>U.sizeMatches(x.size,$('gsize').value));
  const s=$('gso').value;L2.sort((a,b)=>U.compareGames(a,b,s));
  $('ggrid').innerHTML=L2.length?L2.map(gdraw).join(''):GA.length?'<div class="empty" style="margin:6vh 0"><h2>Ничего не найдено</h2><p>Измените поиск или фильтры.</p></div>':'<div class="empty"><div class="stack"><i></i><i></i><i></i></div><h2>Игр пока нет</h2><p>Отправьте вкладку с темой игры из браузера (в «Входящих» выберите «Добавить игру в библиотеку») или вставьте ссылку на тему выше. Установленные игры из папки, указанной в настройках, тоже появятся здесь.</p></div>'}
 function fillPanel(x){const g=x.g,row=(k,v)=>v?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';
@@ -381,7 +381,7 @@ let sv;function save(){clearTimeout(sv);sv=setTimeout(async()=>{const b={};SET.f
  if(!b.workers)b.workers=3;await api('/api/settings',b);$('s_subs_langs').disabled=!b.subs_on;toast('Сохранено')},500)}
 SET.forEach(k=>{const e=$('s_'+k);e.addEventListener('change',save);if(e.type!='checkbox'&&e.tagName=='INPUT')e.addEventListener('input',save)});
 addEventListener('keydown',e=>{if(e.key=='/'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){e.preventDefault();location.hash='#library';$('q').focus()}});
-/* --- расширение: подключение и входящие --- */
+/* расширение */
 let EXTD='',LASTIB='',IB={batches:[]},CH={},FL={},CLS={},SENDING=new Set();
 const KN={manga:'Манга',video:'Видео',playlist:'Плейлист',audio:'Музыка',podcast:'Подкаст',game:'Игра',unknown:'Неизвестно'};
 const AL={gamecard:'Добавить игру в библиотеку',download:'Скачать',track:'Следить за обновлениями',link:'Только сохранить ссылку',site:'Скачать сайт офлайн',skip:'Пропустить',known:'Уже в библиотеке'};

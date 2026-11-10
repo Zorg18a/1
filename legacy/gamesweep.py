@@ -904,8 +904,8 @@ function lev(a, b) {
   return prev[b.length];
 }
 function termIn(t, text, compact, words) {
-  if (text.includes(t) || compact.includes(t.replace(/ /g, ""))) return true;     // слитно: slaveofpassion
-  const sw = [...t].map(c => LAY[c] || c).join("");                                // чужая раскладка: ыдфму
+  if (text.includes(t) || compact.includes(t.replace(/ /g, ""))) return true;
+  const sw = [...t].map(c => LAY[c] || c).join(""); // другая раскладка
   if (sw !== t && text.includes(sw)) return true;
   if (/^\p{L}{4,}$/u.test(t)) {                                                    // опечатка; цифры — только точно
     const tol = t.length <= 6 ? 1 : 2;
@@ -915,7 +915,7 @@ function termIn(t, text, compact, words) {
 }
 function accepts(pq, text, size) {
   const n = norm(text), compact = n.replace(/ /g, ""), words = n.split(" ");
-  if (pq.nots.some(x => n.includes(x))) return false;
+  if (pq.nots.some(x => n.includes(x) || compact.includes(x.replace(/ /g, "")))) return false;
   if (!pq.terms.every(t => termIn(t, n, compact, words))) return false;
   return pq.sizes.every(([op, v]) => size != null && (op === ">" ? size > v : size < v));
 }

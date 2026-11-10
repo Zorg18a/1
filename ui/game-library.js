@@ -11,6 +11,14 @@ export function gameLabels(game) {
   return [...unique.values()];
 }
 
+export function searchMatches(text, query) {
+  const value = String(text ?? '').toLowerCase(), needle = String(query ?? '').toLowerCase();
+  if (value.includes(needle)) return true;
+  const compact = s => s.replace(/[^\p{L}\p{N}]/gu, '');
+  const key = compact(needle);
+  return !!key && compact(value).includes(key);
+}
+
 export function sizeMatches(size, filter) {
   const bytes = Number(size) || 0;
   if (filter === 'unknown') return bytes <= 0;
@@ -62,6 +70,6 @@ export function setupGameLibrary() {
   };
   sort.addEventListener('change', persist);
   size.addEventListener('change', persist);
-  window.MediaHubGameLibrary = { gameLabels, sizeMatches, compareGames };
+  window.MediaHubGameLibrary = { gameLabels, searchMatches, sizeMatches, compareGames };
   window.dispatchEvent(new Event('mediahub:game-library-ready'));
 }

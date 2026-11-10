@@ -3,6 +3,7 @@ import sqlite3
 import threading
 
 from storage import game_tags
+from core.search import contains
 
 
 def initialize(db):
@@ -18,6 +19,7 @@ def initialize(db):
 def open_database(path):
     db = sqlite3.connect(path, check_same_thread=False)
     db.row_factory = sqlite3.Row
+    db.create_function('mh_search', 2, contains)
     initialize(db)
     db.commit()
     return db, threading.Lock()
