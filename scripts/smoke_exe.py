@@ -44,6 +44,7 @@ def check(process):
         time.sleep(0.5)
     else:
         raise RuntimeError('MediaHub did not start on port 8765')
+    assert 'Предпросмотр плеера'.encode('utf-8') in html
     assert get(8765, '/', 'example.invalid')[0] == 403
     assert get(8765, '/m/1')[0] == 200
     assert get(8765, '/ui/app.js')[0] == 200
