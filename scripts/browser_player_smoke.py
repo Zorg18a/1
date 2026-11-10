@@ -2,6 +2,7 @@
 
 Requires Playwright and an installed Microsoft Edge; no real user data or network.
 """
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -27,6 +28,11 @@ def run(root):
         '1\n00:00:00,000 --> 00:00:02,000\nHello from subtitles\n', encoding='utf8')
     app.sql("insert into items(id,title,author,topic,kind,path,url) "
             "values(1,'Видео','','','video',?,'test'),(2,'Игра','','','game','','game:test')", (str(media),))
+    game_folder = root / 'game'
+    game_folder.mkdir()
+    game_info = {'update': True, 'inst': {'version': '1'},
+                 'meta': {'version': '2', 'thread': 'https://example.org/thread', 'links': []}}
+    app.sql('update items set path=?,info=? where id=2', (str(game_folder), json.dumps(game_info)))
     server = ThreadingHTTPServer(('127.0.0.1', 0), app.H)
     thread = threading.Thread(target=server.serve_forever)
     thread.start()
@@ -43,10 +49,14 @@ def run(root):
                 games = page.get_by_role('navigation').get_by_role('link', name='Игры')
                 games.focus(); page.keyboard.press('Enter')
                 expect(page.locator('#v-games')).to_be_visible()
+                expect(page.locator('#gsort-hint')).to_contain_text('всегда показаны первыми')
                 expect(page.locator('.gcard')).to_be_visible()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Games overflow 320px'
                 page.locator('.gcard').focus(); page.keyboard.press('Enter')
                 expect(page.locator('#gpanel')).to_have_attribute('aria-hidden', 'false')
+                expect(page.locator('#gpanel [data-ga="thread"]')).to_have_text('Открыть страницу обновления')
+                expect(page.locator('#gpanel .update-preview')).to_contain_text('Архив не устанавливается')
+                assert page.locator('#gpanel').evaluate('e => e.scrollWidth <= e.clientWidth + 1'), 'Game panel content overflows'
                 page.wait_for_function("""() => { const r = document.querySelector('#gpanel').getBoundingClientRect();
                     return r.left >= 0 && r.right <= innerWidth + 1; }""")
                 page.locator('#gclose').click()

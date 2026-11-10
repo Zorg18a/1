@@ -101,6 +101,7 @@
 - `tests/test_game_tags.py` — проверки валидации, сохранения и отката тегов.
 - `tests/test_game_tags_http.py` — сканирование и HTTP тегов во временной библиотеке.
 - `tests/test_game_library.mjs` — сортировка, фильтр размеров и игровые метки.
+- `tests/test_game_actions.mjs` — подписи действий и пояснение сортировки игр.
 - `tests/test_extension_errors.py` — ошибки подключения и подтверждений расширения.
 - `tests/test_job_queue.py` — тесты очереди, таймеров, отмены и потоков.
 - `tests/test_queue_http.py` — прохождение задания через HTTP и реальный поток без сети.

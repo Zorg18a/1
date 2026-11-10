@@ -19,7 +19,7 @@ jobs:
           python -m compileall -q app.py core storage ui legacy tests
           python scripts/run_tests.py
       - name: Check UI modules
-        run: node --test tests/test_ui.mjs tests/test_cancel_all.mjs tests/test_quick_game.mjs tests/test_game_library.mjs tests/test_update_preview.mjs tests/test_save_compare.mjs tests/test_save_inventory.mjs tests/test_reader.mjs tests/test_player.mjs tests/test_player_subtitles.mjs tests/test_library_player.mjs
+        run: node --test tests/test_ui.mjs tests/test_cancel_all.mjs tests/test_quick_game.mjs tests/test_game_library.mjs tests/test_game_actions.mjs tests/test_update_preview.mjs tests/test_save_compare.mjs tests/test_save_inventory.mjs tests/test_reader.mjs tests/test_player.mjs tests/test_player_subtitles.mjs tests/test_library_player.mjs
       - name: Check player in headless Edge
         env:
           PYTHONUTF8: '1'
