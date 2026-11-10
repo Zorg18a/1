@@ -159,7 +159,7 @@ try:
     conn.request('GET', '/api/manga/1'); response = conn.getresponse()
     assert response.status == 200
     assert json.loads(response.read())['progress'] == {'cid': '12', 'page': 0}
-    # Legacy route still replaces the row and discards updated: integration is not done.
+    # Legacy writes intentionally clear the timestamp; timestamped integration is not done.
     body = json.dumps({'id': 1, 'cid': '12', 'page': 1})
     conn.request('POST', '/api/progress', body, {'X-MH': '1', 'Content-Type': 'application/json'})
     response = conn.getresponse(); assert response.status == 200; response.read()

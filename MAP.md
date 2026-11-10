@@ -30,6 +30,9 @@
 - `core/subtitle_rules.py` — проверка имён, языка и преобразование SRT/WebVTT.
 - `core/playback.py` — изолированные правила и валидация позиции медиа.
 - `core/reader_progress.py` — валидация данных будущей timestamped записи прогресса манги.
+- `core/legacy_reader_progress.py`, `storage/legacy_reader_progress.py` — проверяемая запись в действующую схему без миграции и замены всей строки.
+- `ui/reader-progress.js` — сериализация и ручной повтор записи позиции в одной вкладке.
+- `tests/test_legacy_reader_progress.py`, `tests/test_reader_progress.mjs` — временная БД, ошибки, очередь записи и неопределённый ответ.
 - `ui/reader-images.js` — сообщения об ошибках загрузки страниц и ручной повтор.
 - `scripts/browser_reader_smoke.py` — Edge-проверка читалки и повтора на временной манге.
 - `docs/2026-11-10-mediahub-player-reader-design.md` — приложенная спецификация на проверке.

@@ -45,6 +45,16 @@ try:
     body = json.dumps({'id':1, 'cid':'12', 'page':0})
     assert request('POST', '/api/progress', body)[0] == 403
     assert request('POST', '/api/progress', body, {'X-MH':'1'})[0] == 200
+    assert request('POST', '/api/progress', json.dumps({'id':'1', 'cid':'12', 'page':'0'}), {'X-MH':'1'})[0] == 200
+    app.sql("insert into items(id,title,kind,url) values(2,'Video','video','video:example')")
+    app.sql("insert into items(id,title,kind,url) values(3,'Wrong','manga','not-manga:example')")
+    for bad_id in (2, 3, 999):
+        status, payload = request('POST', '/api/progress', json.dumps({'id':bad_id, 'cid':'12', 'page':0}), {'X-MH':'1'})
+        assert status == 404 and json.loads(payload)['error']
+    for data in ({'id': True, 'cid':'12', 'page':0}, {'id':1, 'cid':'', 'page':0},
+                 {'id':1, 'cid':'12', 'page':-1}, {'id':1, 'cid':'12', 'page':1.5}, {}):
+        status, payload = request('POST', '/api/progress', json.dumps(data), {'X-MH':'1'})
+        assert status == 400 and json.loads(payload)['error'], (status, data, payload)
     status, payload = request('GET', '/api/manga/1')
     assert status == 200 and json.loads(payload)['progress'] == {'cid':'12', 'page':0}
     assert request('GET', '/api/manga/1', headers={'Host':'evil.example'})[0] == 403

@@ -6,7 +6,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from storage.database import open_database, execute
 from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search, game_scan
-from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock
+from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress
 from core.classify import classify
 from core.game_sources import quick_game_request
 from core.game_tags import save_tags_request
@@ -940,7 +940,7 @@ class H(BaseHTTPRequestHandler):
     def get(self):
         u = urlparse(self.path); p = unquote(u.path); qs = {k: v[0] for k, v in parse_qs(u.query).items()}
         if p.startswith(('/sub/', '/api/subtitles/', '/api/player-preview/')): return player_preview.get(self, p, sql) if p.startswith('/api/player-preview/') else media_subtitles.get(self, p, sql)
-        if p == '/' or p in ('/ui/app.js', '/ui/inbox-submit.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/cancel-all.js', '/ui/delete-dialog.js', '/ui/game-library.js', '/ui/game-scan-settings.js', '/ui/library-view.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-images.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js', '/ui/player-keys.js', '/ui/player-subtitles.js', '/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
+        if p == '/' or p in ('/ui/app.js', '/ui/inbox-submit.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/cancel-all.js', '/ui/delete-dialog.js', '/ui/game-library.js', '/ui/game-scan-settings.js', '/ui/library-view.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-images.js', '/ui/reader-progress.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js', '/ui/player-keys.js', '/ui/player-subtitles.js', '/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
         if p == '/api/jobs':
             now = time.time(); keys = ('id', 'url', 'kind', 'status', 'pct', 'title', 'eta', 'daily', 'start_at')
             return self.js([dict({k: j.get(k) for k in keys}, speed=(j.get('speed') or 0) if now - j.get('_ts', now) < 8 else 0) for j in jobs.values()])
@@ -1013,10 +1013,7 @@ class H(BaseHTTPRequestHandler):
         if p == '/api/preview':
             tok = str(next(ids)); prev[tok] = {'done': 0, 'total': 0, 'size': 0, 'unknown': 0, 'skipped': 0, 'err': [], 'finished': False}
             threading.Thread(target=preview, args=(tok, d), daemon=True).start(); return self.js({'t': tok})
-        if p == '/api/progress':
-            r = sql('select url from items where id=?', (d['id'],))
-            if r: sql('insert or replace into progress(slug,cid,page) values(?,?,?)', (r[0]['url'][6:], str(d['cid']), int(d['page'])))
-            return self.js({'ok': 1})
+        if p == '/api/progress': return self.js(*legacy_reader_progress.progress_request(d, db, lock))
         if p == '/api/discover':
             tok = str(next(ids)); prev[tok] = {'done': 0, 'total': 0, 'size': 0, 'unknown': 0, 'skipped': 0, 'err': [], 'finished': False, 'pages': []}
             threading.Thread(target=discover, args=(tok, d), daemon=True).start(); return self.js({'t': tok})

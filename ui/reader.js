@@ -1,6 +1,7 @@
 import { readPreferences } from './preferences.js';
 import { setupReaderModes } from './reader-modes.js';
 import { setupReaderImage } from './reader-images.js';
+import { createProgressSaver, sendProgress } from './reader-progress.js';
 
 const $ = id => document.getElementById(id);
 const id = location.pathname.split('/')[2];
@@ -11,6 +12,19 @@ for (const key of ['theme', 'size', 'contrast']) document.documentElement.datase
 const view = $('v');
 let manga, current = 0, timer, requestNumber = 0;
 const announce = text => { $('reader-announcement').textContent = text; };
+const progress = createProgressSaver({ send: sendProgress, status: state => {
+  const retry = $('reader-progress-retry'), message = $('reader-progress-status');
+  if (state === 'unknown') {
+    message.textContent = 'Не удалось подтвердить сохранение. Запрос мог выполниться; при повторе старый запрос может завершиться позже.';
+    retry.hidden = false;
+  } else if (state === 'saved') {
+    const recovering = !retry.hidden;
+    if (document.activeElement === retry) view.focus({ preventScroll: true });
+    retry.hidden = true;
+    message.textContent = recovering ? 'Позиция сохранена.' : '';
+  } else if (!retry.hidden) message.textContent = 'Сохранение позиции…';
+}});
+$('reader-progress-retry').addEventListener('click', () => progress.retry());
 
 function headerSize() {
   document.documentElement.style.setProperty('--reader-header-height', `${$('reader-header').getBoundingClientRect().height}px`);
@@ -81,6 +95,7 @@ async function openChapter(index, page = 0, focus = false) {
   if (ticket !== requestNumber) return;
   const target = focus && page === 0 ? heading : (images[page] || heading);
   target.scrollIntoView();
+  if (focus && images.length) progress.submit({ id, cid: chapter.id, page });
 }
 
 function save() {
@@ -90,10 +105,7 @@ function save() {
   let page = images.findIndex(image => image.getBoundingClientRect().bottom > $('reader-header').getBoundingClientRect().height);
   if (page < 0) page = images.length - 1;
   $('s').textContent = `стр. ${page + 1}/${images.length}`;
-  fetch('/api/progress', { method: 'POST', headers: { 'X-MH': '1', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: +id, cid: manga.chapters[current].id, page }) })
-    .then(response => { if (!response.ok) throw new Error('progress'); $('reader-error').textContent = ''; })
-    .catch(() => { $('reader-error').textContent = 'Не удалось сохранить позицию. Проверьте подключение к MediaHub и прокрутите страницу, чтобы повторить.'; });
+  progress.submit({ id, cid: manga.chapters[current].id, page });
 }
 window.addEventListener('scroll', () => { clearTimeout(timer); timer = setTimeout(save, 700); });
 $('c').addEventListener('change', event => openChapter(+event.target.value, 0, true));

@@ -20,9 +20,13 @@ def run(root):
     manga = root / 'manga'
     chapter = manga / 'chapters' / '12'
     chapter.mkdir(parents=True)
+    second = manga / 'chapters' / '13'
+    second.mkdir(parents=True)
+    (second / '001.png').write_bytes(PNG)
     manifest = {'slug': 'reader-test', 'title': 'Тест читалки',
-                'listed': [{'cid': '12', 'label': 'Глава 1'}],
-                'chapters': {'12': {'label': 'Глава 1', 'files': ['001.png'], 'expected': 1, 'done': True}}}
+                'listed': [{'cid': '12', 'label': 'Глава 1'}, {'cid': '13', 'label': 'Глава 2'}],
+                'chapters': {key: {'label': label, 'files': ['001.png'], 'expected': 1, 'done': True}
+                             for key, label in (('12', 'Глава 1'), ('13', 'Глава 2'))}}
     (manga / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False), encoding='utf8')
     app.sql("insert into items(id,title,kind,path,root,url) values(3,'Тест','manga',?,?,?)",
             (str(chapter / '001.png'), str(manga), 'manga:reader-test'))
@@ -47,7 +51,25 @@ def run(root):
                 image = page.locator('#v img')
                 page.wait_for_function("document.querySelector('#v img')?.naturalWidth > 0")
                 expect(image).to_be_focused()
-                print('Edge: missing reader page, keyboard retry and focus passed')
+                page.route('**/api/progress', lambda route: route.abort())
+                page.evaluate("window.dispatchEvent(new Event('scroll'))")
+                save_retry = page.get_by_role('button', name='Повторить сохранение позиции')
+                expect(save_retry).to_be_visible()
+                expect(page.locator('#reader-progress-status')).to_contain_text('Запрос мог выполниться')
+                page.unroute('**/api/progress')
+                save_retry.focus(); page.keyboard.press('Enter')
+                expect(save_retry).to_be_hidden()
+                expect(page.locator('#reader-progress-status')).to_have_text('Позиция сохранена.')
+                expect(page.locator('#v')).to_be_focused()
+                page.locator('#n').click()
+                page.wait_for_function("""async () => {
+                    const r = await fetch('/api/manga/3'); const data = await r.json();
+                    return data.progress?.cid === '13' && data.progress?.page === 0;
+                }""")
+                page.reload()
+                expect(page.locator('#c')).to_have_value('1')
+                assert app.sql("select cid,page from progress where slug='reader-test'")[0]['cid'] == '13'
+                print('Edge: reader image and progress retry, chapter save and reload passed')
             finally:
                 browser.close()
     finally:
