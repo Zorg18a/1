@@ -8,6 +8,7 @@ dist/
 *.spec
 *.db
 *.db-*
+mediahub-before-playback-*.partial
 *.sqlite*
 settings.json
 ext.json
