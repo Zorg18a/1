@@ -16,6 +16,7 @@ if os.name == 'nt':
     import ctypes
     from ctypes import wintypes
     import msvcrt
+    from storage.windows_relative import open_relative as _nt_open_relative
 
     class _FileInfo(ctypes.Structure):
         _fields_ = [('attributes', wintypes.DWORD), ('created', wintypes.FILETIME),
@@ -49,7 +50,7 @@ if os.name == 'nt':
     _OPEN_REPARSE = 0x00200000
     _BACKUP_SEMANTICS = 0x02000000
     _SHARE_READ, _SHARE_WRITE = 1, 2
-    _READ_ATTRIBUTES, _GENERIC_READ = 0x80, 0x80000000
+    _READ_ATTRIBUTES, _TRAVERSE, _GENERIC_READ = 0x80, 0x20, 0x80000000
     _FILE_TYPE_DISK = 1
 
 
@@ -64,13 +65,7 @@ def _relative_parts(relative):
     return parts
 
 
-def _open_handle(path, *, directory):
-    flags = _OPEN_REPARSE | (_BACKUP_SEMANTICS if directory else 0)
-    access = _READ_ATTRIBUTES if directory else _GENERIC_READ
-    share = _SHARE_READ | (_SHARE_WRITE if directory else 0)
-    handle = _kernel.CreateFileW(str(path), access, share, None, _OPEN_EXISTING, flags, None)
-    if handle == _INVALID:
-        raise ctypes.WinError(ctypes.get_last_error())
+def _check_handle(handle, *, directory):
     try:
         info = _FileInfo()
         if not _kernel.GetFileInformationByHandle(handle, ctypes.byref(info)):
@@ -82,6 +77,20 @@ def _open_handle(path, *, directory):
     except BaseException:
         _kernel.CloseHandle(handle)
         raise
+
+
+def _open_handle(path, *, directory):
+    flags = _OPEN_REPARSE | (_BACKUP_SEMANTICS if directory else 0)
+    access = _READ_ATTRIBUTES | _TRAVERSE if directory else _GENERIC_READ
+    share = _SHARE_READ | (_SHARE_WRITE if directory else 0)
+    handle = _kernel.CreateFileW(str(path), access, share, None, _OPEN_EXISTING, flags, None)
+    if handle == _INVALID:
+        raise ctypes.WinError(ctypes.get_last_error())
+    return _check_handle(handle, directory=directory)
+
+
+def _open_relative(parent, name, *, directory):
+    return _check_handle(_nt_open_relative(parent, name, directory=directory), directory=directory)
 
 
 def _fixed_ntfs(anchor):
@@ -133,12 +142,10 @@ def open_guarded_file(root, relative):
     _fixed_ntfs(top.anchor)
     directories = []
     try:
-        current = Path(top.anchor)
-        directories.append(_open_handle(current, directory=True))
+        directories.append(_open_handle(Path(top.anchor), directory=True))
         for part in (*top.parts[1:], *parts[:-1]):
-            current = current / part
-            directories.append(_open_handle(current, directory=True))
-        handle = _open_handle(current / parts[-1], directory=False)
+            directories.append(_open_relative(directories[-1], part, directory=True))
+        handle = _open_relative(directories[-1], parts[-1], directory=False)
         try:
             fd = msvcrt.open_osfhandle(handle, os.O_RDONLY | os.O_BINARY)
         except BaseException:

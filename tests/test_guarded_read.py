@@ -4,7 +4,9 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
+from storage import guarded_read, windows_relative
 from storage.guarded_read import GuardedReadError, GuardedReadUnsupported, _relative_parts, open_guarded_file
 
 
@@ -15,6 +17,11 @@ class GuardedPathValidationTests(unittest.TestCase):
                      'a//b', 'a:stream', 'a/b.', 'a/b ', 'a/\x00b'):
             with self.subTest(path=path), self.assertRaises(GuardedReadError):
                 _relative_parts(path)
+
+    def test_native_api_only_accepts_single_components(self):
+        for name in ('', '.', '..', 'a/b', 'a\\b', 'a\x00b'):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                windows_relative.open_relative(None, name, directory=False)
 
     @unittest.skipIf(os.name == 'nt', 'Windows supports the guarded reader')
     def test_non_windows_fails_closed(self):
@@ -56,6 +63,30 @@ class GuardedWindowsTests(unittest.TestCase):
         moved = self.file.with_name('moved.sav')
         self.file.rename(moved)
         self.assertEqual(moved.read_bytes(), b'original')
+
+    def test_only_drive_root_is_opened_by_absolute_path(self):
+        with patch.object(guarded_read, '_open_handle', wraps=guarded_read._open_handle) as absolute, \
+             patch.object(guarded_read, '_open_relative', wraps=guarded_read._open_relative) as relative:
+            with self.open() as source:
+                self.assertEqual(source.read(), b'original')
+        absolute.assert_called_once_with(Path(self.game.anchor), directory=True)
+        calls = relative.call_args_list
+        self.assertEqual([call.args[1] for call in calls], [*self.game.parts[1:], 'saves', 'slot.sav'])
+        self.assertTrue(all(call.kwargs['directory'] for call in calls[:-1]))
+        self.assertFalse(calls[-1].kwargs['directory'])
+
+    def test_relative_open_failure_releases_all_directory_handles(self):
+        real = guarded_read._nt_open_relative
+        def fail_final(parent, name, *, directory):
+            if name == 'slot.sav':
+                raise OSError('simulated failure')
+            return real(parent, name, directory=directory)
+        with patch.object(guarded_read, '_nt_open_relative', side_effect=fail_final):
+            with self.assertRaises(OSError):
+                self.open()
+        moved = self.game / 'renamed'
+        (self.game / 'saves').rename(moved)
+        self.assertEqual((moved / 'slot.sav').read_bytes(), b'original')
 
     def test_rejects_active_writer_hardlink_and_missing_path(self):
         with self.file.open('r+b'):
