@@ -17,7 +17,9 @@
   backup-first миграция и timestamped writer по-прежнему не подключены.
 - Локально прошли 176 Python-тестов (7 Windows-only пропущены), 60 Node-тестов,
   compileall, синтаксис JS, GameSweep selftest 73/73 и `git diff --check`. Добавлен
-  Edge smoke повтора и сохранения главы на временной манге; Windows CI ожидается.
+  Edge smoke повтора и сохранения главы на временной манге. Windows CI
+  [42924660515](https://github.com/Zorg18a/1/actions/runs/42924660515) прошёл,
+  включая Edge и проверку собранного приложения; реальные данные не использовались.
 
 ## Вложенные игровые папки
 
