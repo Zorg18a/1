@@ -46,6 +46,10 @@ def run(root):
                 page.wait_for_function("document.querySelector('track')?.readyState === 2")
                 assert page.locator('track').evaluate("t => t.track.cues[0].text") == 'Hello from subtitles'
                 assert page.locator('video').evaluate("v => v.textTracks[0].mode") == 'showing'
+                page.locator('video').evaluate('async v => { v.muted = true; await v.play(); }')
+                page.wait_for_function("document.querySelector('video').currentTime > 0.1")
+                page.locator('video').evaluate('v => { v.pause(); v.currentTime = 1.5; }')
+                page.wait_for_function("Math.abs(document.querySelector('video').currentTime - 1.5) < 0.1")
                 page.reload()
                 expect(page.get_by_label('Субтитры')).to_have_value('0')
                 page.evaluate('document.activeElement.blur()')
@@ -54,7 +58,7 @@ def run(root):
                 page.reload()
                 expect(page.get_by_label('Субтитры')).to_have_value('-1')
                 assert page.locator('video').evaluate('v => v.paused && !v.autoplay')
-                print('Edge: library → player, subtitle load, selection, persistence and C passed')
+                print('Edge: library → player, playback/seek, subtitles, persistence and C passed')
             finally:
                 browser.close()
     finally:
