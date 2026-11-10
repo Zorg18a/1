@@ -14,6 +14,7 @@
 - `core/byte_range.py` — правила одиночного HTTP Byte Range и ответов на неразрешимые диапазоны.
 - `core/subtitle_rules.py` — проверка имён, языка и преобразование SRT/WebVTT.
 - `core/playback.py` — изолированные правила и валидация позиции медиа.
+- `core/reader_progress.py` — валидация данных будущей timestamped записи прогресса манги.
 - `docs/2026-11-10-mediahub-player-reader-design.md` — приложенная спецификация на проверке.
 - `docs/player-reader-plan.md` — аудит реализации и поэтапный план плеера/читалки.
 - `core/game_sources.py` — валидация игровых тем и подготовка задания для расширения.
@@ -58,6 +59,7 @@
 - `storage/__init__.py` — Пакет хранения данных.
 - `storage/database.py` — Подключение SQLite, начальная миграция и транзакции.
 - `storage/playback.py` — изолированная миграция и хранение позиций, к приложению не подключено.
+- `storage/reader_progress.py` — изолированная транзакционная запись прогресса манги с временем.
 - `storage/subtitles.py` — ограниченный поиск и защищённое чтение файлов субтитров.
 - `storage/playback_migration.py` — экспериментальный backup-first координатор миграции; к приложению не подключён.
 - `storage/startup_schema.py` — изолированная объединённая схема и read-only проверка необходимости миграции.
@@ -101,6 +103,7 @@
 - `tests/test_http.py` — HTTP-тесты, защита, входящие и статусы загрузок на временной базе.
 - `tests/test_storage.py` — Тесты SQLite, миграции и rollback.
 - `tests/test_playback_storage.py` — тесты правил и миграции позиций на временных БД.
+- `tests/test_reader_progress_storage.py` — проверка будущей записи прогресса, отката и совместимости читалки на временных БД.
 - `tests/test_playback_migration.py` — снимки SQLite, WAL, конфликты и отказы на временных БД.
 - `tests/test_startup_schema.py` — единая миграция временной БД, откат, повторное открытие и HTTP-совместимость.
 - `tests/test_schema_validation.py` — совместимые и ошибочные ключи/индексы, резервная копия и откат на временных БД.
