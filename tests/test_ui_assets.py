@@ -16,7 +16,7 @@ server = ThreadingHTTPServer(('127.0.0.1', 0), app.H)
 thread = threading.Thread(target=server.serve_forever)
 thread.start()
 try:
-    for path in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/game-library.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css'):
+    for path in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/game-library.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-modes.js', '/ui/reader.css'):
         conn = http.client.HTTPConnection('127.0.0.1', server.server_port)
         conn.request('GET', path)
         response = conn.getresponse()
@@ -25,6 +25,12 @@ try:
         assert response.getheader('Content-Type').startswith(expected), path
         assert response.read(), path
         conn.close()
+    conn = http.client.HTTPConnection('127.0.0.1', server.server_port)
+    conn.request('GET', '/m/1')
+    response = conn.getresponse()
+    page = response.read()
+    assert response.status == 200 and b'/ui/reader.js' in page and b'/ui/reader.css' in page
+    conn.close()
     for path in ('/ui/../legacy/app.py', '/ui/__init__.py', '/ui/%2e%2e/legacy/app.py'):
         conn = http.client.HTTPConnection('127.0.0.1', server.server_port)
         conn.request('GET', path)

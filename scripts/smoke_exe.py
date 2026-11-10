@@ -52,6 +52,9 @@ def check(process):
     assert get(8765, '/ui/game-update-preview.js')[0] == 200
     assert get(8765, '/ui/save-inventory.js')[0] == 200
     assert get(8765, '/ui/accessibility.css')[0] == 200
+    assert get(8765, '/ui/reader.js')[0] == 200
+    assert get(8765, '/ui/reader-modes.js')[0] == 200
+    assert get(8765, '/ui/reader.css')[0] == 200
     status, body = get(8765, '/api/library')
     assert status == 200 and json.loads(body) == []
     status, result = post('/api/add', {'urls': 'https://example.invalid/test', 'kind': 'video',
