@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import tempfile
 import threading
+import traceback
 import wave
 from http.server import ThreadingHTTPServer
 
@@ -65,5 +66,11 @@ def run(root):
 
 
 if __name__ == '__main__':
-    with tempfile.TemporaryDirectory() as directory:
-        run(Path(directory).resolve())
+    try:
+        with tempfile.TemporaryDirectory() as directory:
+            run(Path(directory).resolve())
+    except Exception:
+        if os.environ.get('GITHUB_ACTIONS'):
+            text = traceback.format_exc()[-6000:].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+            print(f'::error title=Headless Edge smoke failed::{text}', flush=True)
+        raise
