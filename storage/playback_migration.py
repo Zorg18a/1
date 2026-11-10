@@ -58,8 +58,8 @@ def _copy_snapshot(source_path, directory, timeout):
                           f'Незавершённый файл: {partial}') from exc
 
 
-def migrate(db, backup_dir, timeout=30.0):
-    """Snapshot then migrate atomically; returns the unique verified snapshot path.
+def migrate(db, backup_dir, timeout=30.0, *, initialize=None, needs=None):
+    """Snapshot then migrate atomically; returns the snapshot path, or None if current.
 
     Caller must have exclusive use of this connection and must not hold a transaction.
     A RESERVED write lock is held while a separate read-only connection copies the
@@ -80,8 +80,13 @@ def migrate(db, backup_dir, timeout=30.0):
         raise ValueError('Для миграции требуется файловая база SQLite')
     try:
         db.execute('begin immediate')
+        if needs is not None and not needs(db):
+            db.commit()
+            return None
         snapshot = _copy_snapshot(Path(main), directory, timeout)
-        playback.initialize(db)
+        (initialize or playback.initialize)(db)
+        if needs is not None and needs(db):
+            raise sqlite3.DatabaseError('Миграция не завершила схему')
         db.commit()
         return snapshot
     except BaseException:
