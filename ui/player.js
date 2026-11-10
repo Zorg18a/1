@@ -1,5 +1,6 @@
 import { readPreferences } from './preferences.js';
 import { setupPlayerKeys } from './player-keys.js';
+import { setupSubtitleSelector } from './player-subtitles.js';
 
 const $ = id => document.getElementById(id);
 const id = location.pathname.split('/')[2];
@@ -49,15 +50,20 @@ async function load() {
     media.setAttribute('aria-label', item.kind === 'video' ? 'Видеоплеер' : 'Аудиоплеер');
     media.addEventListener('error', () => showError('Не удалось воспроизвести файл. Возможно, браузер не поддерживает его формат.', item.src));
     const pattern = new RegExp(`^/sub/${itemId}/[0-9]{1,2}\\.vtt\\?rev=[0-9a-f]{32}$`);
+    let expected = 0;
     for (const track of Array.isArray(item.subs) ? item.subs : []) {
       if (typeof track.url !== 'string' || !pattern.test(track.url) || typeof track.lang !== 'string' || !/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,3}$/.test(track.lang)) continue;
       const node = document.createElement('track');
       node.kind = 'subtitles'; node.srclang = track.lang; node.label = String(track.label || track.lang); node.src = track.url;
-      media.append(node);
+      node.addEventListener('error', () => { $('player-warning').textContent = 'Не удалось загрузить дорожку субтитров. Попробуйте другую или обновите страницу.'; });
+      media.append(node); expected++;
     }
     media.src = item.src;
     container.append(media);
-    setupPlayerKeys({ doc: document, win: window, media, storage, announce, showHelp });
+    if (item.kind === 'audio' && expected && !item.subtitle_warning) $('player-warning').textContent = 'Отображение субтитров для аудио зависит от браузера.';
+    const subtitlesChanged = setupSubtitleSelector({ doc: document, media, container: $('player-subtitle-control'),
+      select: $('player-subtitles'), storage, itemId, expected });
+    setupPlayerKeys({ doc: document, win: window, media, storage, announce, showHelp, subtitlesChanged });
   } catch {
     showError('Материал не найден или недоступен.');
   }

@@ -1,0 +1,69 @@
+"""Headless Edge player smoke against temporary local media and database.
+
+Requires Playwright and an installed Microsoft Edge; no real user data or network.
+"""
+import os
+from pathlib import Path
+import tempfile
+import threading
+import wave
+from http.server import ThreadingHTTPServer
+
+from playwright.sync_api import expect, sync_playwright
+
+
+def run(root):
+    os.environ['MEDIAHUB_DATA_DIR'] = str(root)
+    from legacy import app
+
+    app.cfg['folder'] = str(root / 'downloads')
+    media = root / 'sample.wav'
+    with wave.open(str(media), 'wb') as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(8000)
+        audio.writeframes(bytes(8000 * 2 * 3))
+    (root / 'sample.en.srt').write_text(
+        '1\n00:00:00,000 --> 00:00:02,000\nHello from subtitles\n', encoding='utf8')
+    app.sql("insert into items(id,title,author,topic,kind,path,url) "
+            "values(1,'Видео','','','video',?,'test')", (str(media),))
+    server = ThreadingHTTPServer(('127.0.0.1', 0), app.H)
+    thread = threading.Thread(target=server.serve_forever)
+    thread.start()
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(channel='msedge', headless=True)
+            try:
+                page = browser.new_page()
+                page.goto(f'http://127.0.0.1:{server.server_port}/', wait_until='domcontentloaded')
+                page.get_by_role('link', name='Предпросмотр плеера без сохранения позиции: Видео').click()
+                expect(page.locator('#player-title')).to_have_text('Видео')
+                expect(page.locator('.notice')).to_contain_text('позиция воспроизведения пока не сохраняется')
+                selector = page.get_by_label('Субтитры')
+                expect(selector).to_be_visible()
+                expect(selector).to_have_value('-1')
+                selector.select_option('0')
+                page.wait_for_function("document.querySelector('track')?.readyState === 2")
+                assert page.locator('track').evaluate("t => t.track.cues[0].text") == 'Hello from subtitles'
+                assert page.locator('video').evaluate("v => v.textTracks[0].mode") == 'showing'
+                page.reload()
+                expect(page.get_by_label('Субтитры')).to_have_value('0')
+                page.evaluate('document.activeElement.blur()')
+                page.keyboard.press('c')
+                expect(page.get_by_label('Субтитры')).to_have_value('-1')
+                page.reload()
+                expect(page.get_by_label('Субтитры')).to_have_value('-1')
+                assert page.locator('video').evaluate('v => v.paused && !v.autoplay')
+                print('Edge: library → player, subtitle load, selection, persistence and C passed')
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+        app.db.close()
+
+
+if __name__ == '__main__':
+    with tempfile.TemporaryDirectory() as directory:
+        run(Path(directory).resolve())

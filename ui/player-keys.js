@@ -1,4 +1,6 @@
 import { readPreferences } from './preferences.js';
+import { cycleSubtitles } from './player-subtitles.js';
+export { cycleSubtitles } from './player-subtitles.js';
 
 export function formatTime(value) {
   const seconds = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
@@ -8,18 +10,7 @@ export function formatTime(value) {
   return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${rest}` : `${minutes}:${rest}`;
 }
 
-export function cycleSubtitles(media) {
-  const tracks = [...media.textTracks];
-  if (!tracks.length) return 'Нет доступных субтитров';
-  const current = tracks.findIndex(track => track.mode === 'showing');
-  const next = current + 1;
-  for (const track of tracks) track.mode = 'disabled';
-  if (next >= tracks.length) return 'Субтитры выключены';
-  tracks[next].mode = 'showing';
-  return `Субтитры: ${tracks[next].label || tracks[next].language || next + 1}`;
-}
-
-export function setupPlayerKeys({ doc, win, media, storage, announce, showHelp }) {
+export function setupPlayerKeys({ doc, win, media, storage, announce, showHelp, subtitlesChanged = () => {} }) {
   win.addEventListener('keydown', event => {
     if (!readPreferences(storage).hotkeys || event.ctrlKey || event.altKey || event.metaKey) return;
     if (doc.getElementById('player-help').open) return;
@@ -40,7 +31,7 @@ export function setupPlayerKeys({ doc, win, media, storage, announce, showHelp }
     } else if (key === '[' || key === ']') {
       media.playbackRate = Math.max(0.5, Math.min(2, Math.round((media.playbackRate + (key === '[' ? -0.25 : 0.25)) * 100) / 100));
       announce(`Скорость ${media.playbackRate}`);
-    } else if (key === 'c') announce(cycleSubtitles(media));
+    } else if (key === 'c') { announce(cycleSubtitles(media)); subtitlesChanged(); }
     else if (key === 'm') { media.muted = !media.muted; announce(media.muted ? 'Звук выключен' : 'Звук включён'); }
     else if (key === 'f' && media.tagName === 'VIDEO') {
       const exiting = Boolean(doc.fullscreenElement);

@@ -4,8 +4,9 @@ import { readFile } from 'node:fs/promises';
 
 const dataUrl = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
 const prefUrl = dataUrl(await readFile(new URL('../ui/preferences.js', import.meta.url), 'utf8'));
+const subtitlesUrl = dataUrl(await readFile(new URL('../ui/player-subtitles.js', import.meta.url), 'utf8'));
 const keysSource = (await readFile(new URL('../ui/player-keys.js', import.meta.url), 'utf8'))
-  .replace("'./preferences.js'", `'${prefUrl}'`);
+  .replace("'./preferences.js'", `'${prefUrl}'`).replaceAll("'./player-subtitles.js'", `'${subtitlesUrl}'`);
 const keysUrl = dataUrl(keysSource);
 const { formatTime, cycleSubtitles, setupPlayerKeys } = await import(keysUrl);
 
@@ -19,6 +20,7 @@ class Element {
   addEventListener(type, callback) { this.listeners[type] = callback; }
   dispatch(type) { return this.listeners[type]?.({ target: this }); }
   append(...children) { this.children.push(...children); }
+  replaceChildren(...children) { this.children = children; }
   setAttribute(key, value) { this.attrs[key] = value; }
   closest() { return null; }
   play() { this.paused = false; this.plays++; return Promise.resolve(); }
@@ -28,7 +30,8 @@ class Element {
 }
 function fixture() {
   const ids = ['player-title', 'player-help', 'player-help-open', 'player-help-close', 'player-warning',
-    'player-error', 'player-error-text', 'player-direct', 'player-container', 'player-announcement'];
+    'player-error', 'player-error-text', 'player-direct', 'player-container', 'player-announcement',
+    'player-subtitle-control', 'player-subtitles'];
   const elements = Object.fromEntries(ids.map(id => [id, new Element()]));
   const doc = { documentElement: new Element('html'), getElementById: id => elements[id],
     createElement: tag => new Element(tag) };
@@ -48,7 +51,7 @@ test('formats time and cycles through subtitle tracks', () => {
   assert.equal(formatTime(73), '1:13');
   assert.equal(formatTime(3661), '1:01:01');
   assert.equal(formatTime(NaN), '0:00');
-  const media = { textTracks: [{ mode: 'disabled', label: 'Русский' }, { mode: 'disabled', label: 'English' }] };
+  const media = { textTracks: [{ kind: 'subtitles', mode: 'disabled', label: 'Русский' }, { kind: 'captions', mode: 'disabled', label: 'English' }] };
   assert.equal(cycleSubtitles(media), 'Субтитры: Русский');
   assert.equal(cycleSubtitles(media), 'Субтитры: English');
   assert.equal(cycleSubtitles(media), 'Субтитры выключены');
@@ -65,7 +68,7 @@ test('hotkeys respect focus and preferences and handle player controls', async (
   key(f.win, 'l'); assert.equal(media.currentTime, 10);
   key(f.win, 'j'); key(f.win, 'j'); assert.equal(media.currentTime, 0);
   key(f.win, ']'); assert.equal(media.playbackRate, 1.25);
-  media.textTracks = [{ mode: 'disabled', label: 'Русский' }];
+  media.textTracks = [{ kind: 'subtitles', mode: 'disabled', label: 'Русский' }];
   key(f.win, 'c'); assert.equal(media.textTracks[0].mode, 'showing');
   key(f.win, 'c'); assert.equal(media.textTracks[0].mode, 'disabled');
   key(f.win, 'm'); assert.equal(media.muted, true);
@@ -101,7 +104,8 @@ test('preview constructs native media and safe tracks without autoplay or positi
       subs: [{ lang: 'en', label: 'English', url: '/sub/1/0.vtt?rev=' + 'a'.repeat(32) },
         { lang: 'en', label: 'unsafe', url: 'https://evil.invalid/track.vtt' }] }) }; };
     const source = (await readFile(new URL('../ui/player.js', import.meta.url), 'utf8'))
-      .replace("'./preferences.js'", `'${prefUrl}'`).replace("'./player-keys.js'", `'${keysUrl}'`);
+      .replace("'./preferences.js'", `'${prefUrl}'`).replace("'./player-keys.js'", `'${keysUrl}'`)
+      .replace("'./player-subtitles.js'", `'${subtitlesUrl}'`);
     await import(dataUrl(source)); await flush();
     assert.deepEqual(calls, ['/api/player-preview/1']);
     assert.equal(f.elements['player-title'].textContent, '<Unsafe>');
@@ -109,6 +113,8 @@ test('preview constructs native media and safe tracks without autoplay or positi
     assert.equal(media.tagName, 'VIDEO'); assert.equal(media.controls, true); assert.equal(media.preload, 'metadata');
     assert.equal(media.plays, 0); assert.equal(media.src, '/f/1');
     assert.equal(media.children.length, 1); assert.equal(media.children[0].kind, 'subtitles');
+    media.children[0].dispatch('error');
+    assert.match(f.elements['player-warning'].textContent, /Не удалось загрузить дорожку/);
     media.dispatch('error');
     assert.equal(f.elements['player-error'].hidden, false);
     assert.equal(f.elements['player-direct'].href, '/f/1');
@@ -128,7 +134,8 @@ test('preview reports missing material and does not create a media element', asy
     globalThis.location = { pathname: '/p/7' };
     globalThis.fetch = async () => ({ ok: false, json: async () => ({ error: 'not found' }) });
     const source = (await readFile(new URL('../ui/player.js', import.meta.url), 'utf8'))
-      .replace("'./preferences.js'", `'${prefUrl}'`).replace("'./player-keys.js'", `'${keysUrl}'`);
+      .replace("'./preferences.js'", `'${prefUrl}'`).replace("'./player-keys.js'", `'${keysUrl}'`)
+      .replace("'./player-subtitles.js'", `'${subtitlesUrl}'`);
     await import(dataUrl(source + '\n// missing')); await flush();
     assert.equal(f.elements['player-container'].children.length, 0);
     assert.equal(f.elements['player-error'].hidden, false);
@@ -149,7 +156,8 @@ test('audio preview renders decorative cover and warns about unavailable subtitl
     globalThis.fetch = async () => ({ ok: true, json: async () => ({
       id: 2, title: 'Audio', kind: 'audio', src: '/f/2', cover: '/t/2', subs: [], subtitle_warning: true }) });
     const source = (await readFile(new URL('../ui/player.js', import.meta.url), 'utf8'))
-      .replace("'./preferences.js'", `'${prefUrl}'`).replace("'./player-keys.js'", `'${keysUrl}'`);
+      .replace("'./preferences.js'", `'${prefUrl}'`).replace("'./player-keys.js'", `'${keysUrl}'`)
+      .replace("'./player-subtitles.js'", `'${subtitlesUrl}'`);
     await import(dataUrl(source + '\n// audio')); await flush();
     const [cover, media] = f.elements['player-container'].children;
     assert.equal(cover.tagName, 'IMG'); assert.equal(cover.alt, ''); assert.equal(cover.src, '/t/2');

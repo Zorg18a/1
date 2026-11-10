@@ -33,6 +33,7 @@ def request(path, headers=None):
 try:
     status, _, page = request('/p/1')
     assert status == 200 and b'/ui/player.js' in page and 'позиция воспроизведения пока не сохраняется' in page.decode('utf8')
+    assert 'for="player-subtitles"' in page.decode('utf8')
     status, _, body = request('/api/player-preview/1')
     item = json.loads(body)
     assert status == 200 and item['title'] == '<Title>' and item['kind'] == 'audio'

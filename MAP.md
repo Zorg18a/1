@@ -122,9 +122,11 @@
 - `tests/test_ui_assets.py` — проверка HTTP-доставки и ограничений статических ресурсов.
 - `ui/index.html` — Главный браузерный интерфейс.
 - `ui/player.html`, `ui/player.css` — предварительная страница плеера и стили.
-- `ui/player.js`, `ui/player-keys.js` — встроенные медиаэлементы, субтитры и клавиши без сохранения позиции.
+- `ui/player.js`, `ui/player-keys.js` — встроенные медиаэлементы и клавиши без сохранения позиции.
+- `ui/player-subtitles.js` — доступный выбор и локальная настройка дорожек субтитров.
 - `tests/test_player.mjs`, `tests/test_player_http.py` — DOM/клавиши и HTTP предварительного плеера.
 - `tests/test_library_player.mjs` — отрисовка безопасной ссылки предпросмотра в карточках библиотеки.
+- `tests/test_player_subtitles.mjs`, `scripts/browser_player_smoke.py` — выбор дорожек и headless Edge smoke на временном медиа.
 - `ui/reader.html` — каркас читалки манги и доступные элементы управления.
 - `ui/reader.js` — загрузка глав, восстановление позиции, фокус и сохранение страницы.
 - `ui/reader-modes.js` — режимы вписывания, масштаб и клавиши читалки.

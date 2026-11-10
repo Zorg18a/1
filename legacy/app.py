@@ -944,7 +944,7 @@ class H(BaseHTTPRequestHandler):
     def get(self):
         u = urlparse(self.path); p = unquote(u.path); qs = {k: v[0] for k, v in parse_qs(u.query).items()}
         if p.startswith(('/sub/', '/api/subtitles/', '/api/player-preview/')): return player_preview.get(self, p, sql) if p.startswith('/api/player-preview/') else media_subtitles.get(self, p, sql)
-        if p == '/' or p in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/game-library.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js', '/ui/player-keys.js', '/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
+        if p == '/' or p in ('/ui/app.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/game-library.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js', '/ui/player-keys.js', '/ui/player-subtitles.js', '/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
         if p == '/api/jobs':
             now = time.time(); keys = ('id', 'url', 'kind', 'status', 'pct', 'title', 'eta', 'daily', 'start_at')
             return self.js([dict({k: j.get(k) for k in keys}, speed=(j.get('speed') or 0) if now - j.get('_ts', now) < 8 else 0) for j in jobs.values()])
