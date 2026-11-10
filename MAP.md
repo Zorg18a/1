@@ -58,6 +58,7 @@
 - `storage/zip_content.py` — ограниченная потоковая проверка локальных заголовков и CRC без записи файлов.
 - `storage/save_discovery.py` — ограниченный поиск возможных сохранений по именам в папке игры.
 - `storage/save_inventory.py` — ограниченный просмотр метаданных файлов в найденных расположениях.
+- `storage/guarded_read.py` — экспериментальный Windows NTFS-примитив чтения с удержанием дескрипторов; пока не подключён к API.
 - `tests/test_classify.py` — проверки классификации ссылок и канонических ключей.
 - `tests/test_quick_game.py` — валидация, авторизация и тест карточки игры через HTTP.
 - `tests/test_quick_game.mjs` — тесты обеих копий кнопки и обработки ошибок.
@@ -73,6 +74,7 @@
 - `tests/test_zip_content.py` — stored/deflate, дескрипторы, повреждения, лимиты и изменение файла.
 - `tests/test_save_discovery.py` — подсказки сохранений, ограничения, ссылки и гонки.
 - `tests/test_save_inventory.py`, `tests/test_save_inventory.mjs` — просмотр состава сохранений, ограничения и интерфейс.
+- `tests/test_guarded_read.py` — проверка Windows NTFS-дескрипторов и отказов на временных файлах.
 - `tests/test_save_compare.py`, `tests/test_save_compare_request.py`, `tests/test_save_compare_http.py`, `tests/test_save_compare.mjs` — сравнение путей, изоляция, API и интерфейс.
 - `tests/test_zip_inspection_http.py` — изолированная проверка ZIP через HTTP.
 - `tests/test_game_tags.py` — проверки валидации, сохранения и отката тегов.
