@@ -44,5 +44,9 @@ export async function sendProgress(position, fetcher = fetch) {
   if (response.status === 409) throw Object.assign(new Error('Item changed'), { code: 'identity-conflict' });
   if (!response.ok) throw new Error('HTTP');
   const result = await response.json();
-  if (!result || result.error || result.ok !== 1) throw new Error('Invalid response');
+  if (!result || result.error || result.ok !== 1 ||
+      ('snapshot' in position && (typeof result.snapshot !== 'string' || !/^[0-9a-f]{64}$/.test(result.snapshot)))) {
+    throw new Error('Invalid response');
+  }
+  return result.snapshot;
 }

@@ -50,6 +50,14 @@ test('transport checks HTTP and JSON, retaining string item ids', async () => {
   await assert.rejects(sendProgress({}, async () => { throw Error('offline'); }));
 });
 
+test('snapshot writes require a valid confirmed replacement token', async () => {
+  const snapshot = 'a'.repeat(64), next = 'b'.repeat(64);
+  assert.equal(await sendProgress({ snapshot }, async () => ({ ok: true, json: async () => ({ ok: 1, snapshot: next }) })), next);
+  for (const result of [{ ok: 1 }, { ok: 1, snapshot: '' }, { ok: 1, snapshot: 'z'.repeat(64) }]) {
+    await assert.rejects(sendProgress({ snapshot }, async () => ({ ok: true, json: async () => result })));
+  }
+});
+
 test('dirty during debounce stays dirty when an older request completes', async () => {
   const sends = [], changes = [], statuses = [];
   const saver = createProgressSaver({ onDirty: d => changes.push(d), status: s => statuses.push(s),

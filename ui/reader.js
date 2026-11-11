@@ -10,10 +10,12 @@ try { storage = window.localStorage; } catch { storage = null; }
 const display = readPreferences(storage);
 for (const key of ['theme', 'size', 'contrast']) document.documentElement.dataset[key] = display[key];
 const view = $('v');
-let manga, current = 0, timer, requestNumber = 0;
+let manga, current = 0, timer, requestNumber = 0, snapshot;
 const announce = text => { $('reader-announcement').textContent = text; };
 const warnBeforeLeave = event => { event.preventDefault(); event.returnValue = true; };
-const progress = createProgressSaver({ send: sendProgress, onDirty: dirty => {
+const progress = createProgressSaver({ send: async position => {
+  snapshot = await sendProgress({ ...position, snapshot });
+}, onDirty: dirty => {
   window[dirty ? 'addEventListener' : 'removeEventListener']('beforeunload', warnBeforeLeave);
 }, status: state => {
   const retry = $('reader-progress-retry'), message = $('reader-progress-status');
@@ -23,7 +25,7 @@ const progress = createProgressSaver({ send: sendProgress, onDirty: dirty => {
   } else if (state === 'conflict') {
     if (document.activeElement === retry) view.focus({ preventScroll: true });
     retry.hidden = true;
-    message.textContent = 'Запись манги изменилась или ключ позиции конфликтует. Позиция не сохранена; обновите читалку и проверьте данные.';
+    message.textContent = 'Запись или позиция манги изменилась либо ключ позиции конфликтует. Позиция не сохранена; обновите читалку и проверьте данные.';
   } else if (state === 'saved') {
     const recovering = !retry.hidden;
     if (document.activeElement === retry) view.focus({ preventScroll: true });
@@ -34,7 +36,8 @@ const progress = createProgressSaver({ send: sendProgress, onDirty: dirty => {
 }});
 $('reader-progress-retry').addEventListener('click', () => progress.retry());
 const canSave = () => manga?.progress_save_allowed === true && typeof manga.progress_slug === 'string' &&
-  manga.progress_slug.length > 0 && manga.progress_slug.length <= 1024 && !manga.progress_slug.includes('\0');
+  manga.progress_slug.length > 0 && manga.progress_slug.length <= 1024 && !manga.progress_slug.includes('\0') &&
+  typeof snapshot === 'string' && /^[0-9a-f]{64}$/.test(snapshot);
 
 function headerSize() {
   document.documentElement.style.setProperty('--reader-header-height', `${$('reader-header').getBoundingClientRect().height}px`);
@@ -133,7 +136,8 @@ async function load() {
     const data = await response.json();
     if (!response.ok || data.error || !Array.isArray(data.chapters)) throw new Error('not found');
     manga = data;
-    if (!canSave()) $('reader-error').textContent = 'Позиция не сохраняется: идентификаторы записи и манифеста манги не совпадают или не проверены. Проверьте данные библиотеки.';
+    snapshot = data.progress_snapshot;
+    if (!canSave()) $('reader-error').textContent = 'Позиция не сохраняется: данные записи, манифеста или снимка позиции не проверены. Проверьте данные библиотеки.';
     document.title = data.title;
     $('t').textContent = `${data.title} · скачано глав ${data.have} из ${data.total || data.have}`;
     $('c').replaceChildren(...data.chapters.map((chapter, index) => {

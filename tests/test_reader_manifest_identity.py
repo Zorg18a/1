@@ -55,6 +55,9 @@ class ReaderManifestIdentityTests(unittest.TestCase):
         self.assertTrue(result['progress_save_allowed']); self.assertIsNone(result['progress'])
         body, status = progress_request({'id': 1, 'cid': '2', 'page': 0, 'slug': 'alpha'}, self.db, self.lock)
         self.assertEqual(status, 409); self.assertIn('error', body)
+        body, status = progress_request({'id': 1, 'cid': '2', 'page': 0, 'slug': 'alpha',
+                                         'snapshot': result['progress_snapshot']}, self.db, self.lock)
+        self.assertEqual(status, 409); self.assertIn('error', body)
         self.assertEqual(tuple(self.db.execute('select slug,cid,page from progress').fetchone()), ('Alpha', 'other', 9))
         self.assertFalse(self.db.in_transaction)
 

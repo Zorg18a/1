@@ -32,8 +32,8 @@
 - `core/subtitle_rules.py` — проверка имён, языка и преобразование SRT/WebVTT.
 - `core/playback.py` — изолированные правила и валидация позиции медиа.
 - `core/reader_progress.py` — валидация данных будущей timestamped записи прогресса манги.
-- `core/legacy_reader_progress.py`, `storage/legacy_reader_progress.py`, `storage/reader_manifest.py` — проверка ключа манги и запись в действующую схему без миграции и замены всей строки.
-- `tests/test_reader_manifest_identity.py` — соответствие манифеста и записи, конфликт ключей в старой схеме.
+- `core/legacy_reader_progress.py`, `storage/legacy_reader_progress.py`, `storage/reader_manifest.py`, `storage/reader_snapshot.py` — проверка ключа и снимка позиции манги, запись в действующую схему без миграции и замены всей строки.
+- `tests/test_reader_manifest_identity.py`, `tests/test_reader_snapshot.py` — идентичность, конкурентное сравнение позиции и границы его защиты.
 - `scripts/browser_diagnostics.py`, `tests/test_browser_diagnostics.py` — диагностика ошибок браузера в изолированных smoke-тестах.
 - `storage/reader_revision.py`, `tests/test_reader_revision.py`, `tests/test_reader_revision_migration.py` — неподключённый эксперимент ревизий читалки, проверка схемы, backup-first и compare-and-write на временных БД.
 - `ui/reader-progress.js` — сериализация и ручной повтор записи позиции в одной вкладке.

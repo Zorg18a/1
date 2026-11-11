@@ -58,6 +58,15 @@ try:
         assert status == 400 and json.loads(payload)['error'], (status, data, payload)
     status, payload = request('GET', '/api/manga/1')
     assert status == 200 and json.loads(payload)['progress'] == {'cid':'12', 'page':0}
+    token = json.loads(payload)['progress_snapshot']
+    assert len(token) == 64
+    conditional = {'id': 1, 'cid': '13', 'page': 2, 'slug': 'example', 'snapshot': token}
+    status, payload = request('POST', '/api/progress', json.dumps(conditional), {'X-MH':'1'})
+    assert status == 200 and json.loads(payload)['snapshot'] != token
+    status, payload = request('POST', '/api/progress', json.dumps({**conditional, 'page': 3}), {'X-MH':'1'})
+    assert status == 409 and json.loads(payload)['error']
+    status, payload = request('GET', '/api/manga/1')
+    assert json.loads(payload)['progress'] == {'cid':'13', 'page':2}
     guarded = json.dumps({'id': 1, 'cid': '12', 'page': 1, 'slug': 'example'})
     assert request('POST', '/api/progress', guarded, {'X-MH':'1'})[0] == 200
     app.sql("update items set url='manga:other' where id=1")
