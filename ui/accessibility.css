@@ -34,6 +34,7 @@ html[data-contrast="high"] ::placeholder { color:var(--mute); opacity:1 }
 .game-tags-form [role="status"] { overflow-wrap:anywhere }
 .update-preview p, .update-preview li { overflow-wrap:anywhere }
 .player-preview { margin-top:8px; color:var(--text); text-decoration:underline; overflow-wrap:anywhere }
+.library-playback-hint { margin:12px 0; overflow-wrap:anywhere }
 @media(max-width:860px) {
   .notify-launch, .shortcuts-launch { justify-content:center; padding:9px 4px }
   .gpanel { left:64px; width:min(410px, calc(100vw - 64px)) }

@@ -21,6 +21,7 @@
 - `storage/download_preflight.py`, `core/download_preflight.py`, `ui/download-preflight.js`, `ui/download-preflight-dialog.js` — проверка сохранённой папки, места, инструментов и связи с расширением без записи из настроек и окна добавления.
 - `tests/test_download_preflight.py`, `tests/test_download_preflight_http.py`, `tests/test_download_preflight.mjs`, `tests/test_download_preflight_dialog.mjs`, `scripts/browser_preflight_smoke.py` — изолированные проверки preflight, HTTP и Edge.
 - `ui/library-search.js`, `tests/test_library_search.mjs` — счётчик и сброс поиска/типа основной библиотеки, индикация ошибок и проверка порядка запросов.
+- `ui/library-playback-hint.js`, `tests/test_library_playback_hint.mjs` — пояснение прямого открытия и предварительного плеера, доступное описание ссылок.
 - `ui/game-search.js`, `tests/test_game_search.mjs` — счётчик, сброс игровых фильтров, повтор загрузки и порядок запросов.
 - `storage/recent_items.py`, `core/recent_items.py`, `ui/recent.js` — проверка текущей записи и локальная история открытий плеера/читалки без миграции.
 - `tests/test_recent_items.py`, `tests/test_recent.mjs`, `scripts/browser_recent_smoke.py` — метаданные, история, ограничения и проверка в Edge на временных данных.

@@ -10,6 +10,7 @@ import { setupGameSearch } from './game-search.js';
 import { setupGameScanSettings } from './game-scan-settings.js';
 import { setupLibraryView } from './library-view.js';
 import { setupLibrarySearch } from './library-search.js';
+import { setupLibraryPlaybackHint } from './library-playback-hint.js';
 import { setupGameTags } from './game-tags.js';
 import { setupUpdatePreview } from './game-update-preview.js';
 import { setupSaveInventory } from './save-inventory.js';
@@ -31,6 +32,7 @@ setupGameLibrary();
 setupGameSearch({ doc: document, win: window });
 setupGameScanSettings();
 setupLibraryView();
+setupLibraryPlaybackHint();
 setupLibrarySearch({ doc: document, win: window });
 let recentStorage;
 try { recentStorage = window.localStorage; } catch { recentStorage = null; }
