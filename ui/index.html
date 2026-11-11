@@ -251,13 +251,13 @@ addEventListener('hashchange',route);
 /* --- toast --- */
 function toast(t,label,fn){window.dispatchEvent(new CustomEvent('mediahub:notify',{detail:{message:String(t),label,action:fn}}))}
 /* библиотека */
-let ALL=[],FK='',L=[];
-async function lib(){ALL=await api('/api/library?q='+encodeURIComponent($('q').value));draw()}
+let ALL=[],FK='',L=[],LIBSEQ=0,LIBQUERY=null;
+async function lib(){const seq=++LIBSEQ,q=$('q').value;window.MediaHubLibraryPending?.();try{const r=await fetch('/api/library?q='+encodeURIComponent(q),{cache:'no-store'});if(!r.ok)throw Error('library');const rows=await r.json();if(seq!=LIBSEQ||q!==$('q').value)return;if(!Array.isArray(rows))throw Error('library');ALL=rows;LIBQUERY=q;window.MediaHubLibraryLoaded?.();draw()}catch(e){if(seq==LIBSEQ&&q===$('q').value)window.MediaHubLibraryError?.()}}
 function setK(k){FK=k;draw();window.dispatchEvent(new CustomEvent('mediahub:library-kind',{detail:k}))}
 function draw(){const cn={};ALL.forEach(x=>cn[x.kind]=(cn[x.kind]||0)+1);
  const T=[['','Все'],['video','Видео'],['audio','Аудио'],['manga','Манга'],['site','Сайты'],['game','Игры'],['link','Ссылки']];
  $('chips').innerHTML=T.filter(([k])=>!k||cn[k]||k==FK).map(([k,n])=>`<button class="chip${FK==k?' on':''}" aria-pressed="${FK==k}" onclick="setK('${k}')">${n}<span>${k?(cn[k]||0):ALL.length}</span></button>`).join('');
- const s=$('so').value,g=$('gb').value;L=ALL.filter(x=>!FK||x.kind==FK);
+ const s=$('so').value,g=$('gb').value;L=ALL.filter(x=>!FK||x.kind==FK);window.MediaHubLibraryDrawn?.(L.length,LIBQUERY);
  L.sort((a,b)=>s=='title'?(a.title||'').localeCompare(b.title||'','ru'):s=='size'?b.size-a.size:b.id-a.id);
  if(!L.length){$('lib').innerHTML=$('q').value?`<div class="empty"><h2>Ничего не нашлось</h2><p>По запросу «${esc($('q').value)}»${FK?' и выбранному типу':''} ничего не найдено.</p></div>`
   :FK?`<div class="empty"><h2>В этом типе пока нет материалов</h2><button class="btn" onclick="setK('')">Показать все материалы</button></div>`:`<div class="empty"><div class="stack"><i></i><i></i><i></i></div><h2>Пока пусто</h2><p>Добавьте ссылку на видео, музыку, мангу или сайт — всё появится здесь с обложками.</p><div class="row"><button class="btn primary" onclick="openAdd()">Добавить ссылку</button><button class="btn quiet" onclick="scan()">Найти файлы в папке</button></div></div>`;return}
@@ -268,7 +268,7 @@ function draw(){const cn={};ALL.forEach(x=>cn[x.kind]=(cn[x.kind]||0)+1);
   <h3 class="t" title="${esc(x.title)}">${esc(x.title)}</h3>${sub||x.missing?`<p class="a">${esc(sub||'')}${x.missing?(sub?' · ':'')+'файл не найден':''}</p>`:''}${w&&!x.missing&&Number.isSafeInteger(x.id)&&x.id>0?`<a class="btn player-preview" href="/p/${x.id}" aria-label="Предпросмотр плеера: ${esc(x.title)}">Предпросмотр плеера</a>`:''}</article>`};
  $('lib').innerHTML=Object.keys(m).sort((a,b)=>a.localeCompare(b,'ru')).map(k=>{const wd=x=>x.kind=='video'||x.kind=='audio'||x.kind=='game',w=m[k].filter(wd),p=m[k].filter(x=>!wd(x));
   return `<section class="grp">${g?`<h2>${esc(k)}<span>${m[k].length}</span></h2>`:''}${w.length?`<div class="grid wide">${w.map(card).join('')}</div>`:''}${p.length?`<div class="grid">${p.map(card).join('')}</div>`:''}</section>`}).join('')}
-['gb','so'].forEach(i=>$(i).onchange=draw);let qt;$('q').oninput=()=>{clearTimeout(qt);qt=setTimeout(lib,250)};
+['gb','so'].forEach(i=>$(i).onchange=draw);let qt;function searchNow(){clearTimeout(qt);lib()}$('q').oninput=()=>{clearTimeout(qt);++LIBSEQ;window.MediaHubLibraryPending?.();qt=setTimeout(lib,250)};
 async function dl(i){const r=await api('/api/item/download',{id:L[i].id});toast(r.error||'Добавлено в очередь','Загрузки',()=>location.hash='#downloads');poll()}
 async function scan(){await api('/api/scan',{});toast('Папка просмотрена');lib()}$('scan').onclick=scan;
 let EI=null;

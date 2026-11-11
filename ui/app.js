@@ -8,6 +8,7 @@ import { setupDeleteDialog } from './delete-dialog.js';
 import { setupGameLibrary } from './game-library.js';
 import { setupGameScanSettings } from './game-scan-settings.js';
 import { setupLibraryView } from './library-view.js';
+import { setupLibrarySearch } from './library-search.js';
 import { setupGameTags } from './game-tags.js';
 import { setupUpdatePreview } from './game-update-preview.js';
 import { setupSaveInventory } from './save-inventory.js';
@@ -26,6 +27,7 @@ setupSaveInventory();
 setupGameLibrary();
 setupGameScanSettings();
 setupLibraryView();
+setupLibrarySearch({ doc: document, win: window });
 let recentStorage;
 try { recentStorage = window.localStorage; } catch { recentStorage = null; }
 setupRecent({ doc: document, win: window, storage: recentStorage, fetcher: window.fetch.bind(window) });

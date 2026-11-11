@@ -15,7 +15,7 @@ function render(items, { filter = '', group = '', search = '' } = {}) {
   const elements = { so: { value: 'title' }, gb: { value: group }, q: { value: search },
     chips: { innerHTML: '' }, lib: { innerHTML: '' } };
   const context = { ALL: items.map(item => ({ author: '', topic: '', size: 0, cover: '', ...item })),
-    FK: filter, L: [], $: id => elements[id], B: () => '0 Б', I: () => '', IC: { video: '' } };
+    FK: filter, L: [], LIBQUERY: search, window: {}, $: id => elements[id], B: () => '0 Б', I: () => '', IC: { video: '' } };
   vm.runInNewContext(`${escapeCode}\n${drawCode}\ndraw();`, context);
   return elements.lib.innerHTML;
 }
@@ -59,7 +59,7 @@ test('untrusted ids are rejected and titles are escaped in the preview label', (
 test('a selected type remains available when search has no matching items', () => {
   const elements = { so: { value: 'title' }, gb: { value: '' }, q: { value: 'nothing' },
     chips: { innerHTML: '' }, lib: { innerHTML: '' } };
-  const context = { ALL: [], FK: 'video', L: [], $: id => elements[id], B: () => '0 Б', I: () => '', IC: {} };
+  const context = { ALL: [], FK: 'video', L: [], LIBQUERY: 'nothing', window: {}, $: id => elements[id], B: () => '0 Б', I: () => '', IC: {} };
   vm.runInNewContext(`${escapeCode}\n${drawCode}\ndraw()`, context);
   assert.equal(context.FK, 'video');
   assert.match(elements.chips.innerHTML, /aria-pressed="true"[^>]*>Видео<span>0/);
