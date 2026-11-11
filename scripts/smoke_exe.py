@@ -57,6 +57,14 @@ def check(process):
     status, body = get(8765, '/api/recent/999')
     assert status == 404 and json.loads(body)['error']
     assert get(8765, '/ui/backup.js')[0] == 200
+    assert get(8765, '/ui/download-preflight.js')[0] == 200
+    connection = http.client.HTTPConnection('127.0.0.1', 8765, timeout=5)
+    try:
+        connection.request('POST', '/api/preflight', headers={'X-MH': '1'})
+        response = connection.getresponse(); result = json.loads(response.read())
+        assert response.status == 200 and result['directory']['state'] == 'directory'
+    finally:
+        connection.close()
     assert get(8765, '/ui/game-library.js')[0] == 200
     assert get(8765, '/ui/game-search.js')[0] == 200
     assert get(8765, '/ui/game-tags.js')[0] == 200

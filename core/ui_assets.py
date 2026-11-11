@@ -3,6 +3,7 @@
 UI_FILES = frozenset((
     '/ui/app.js',
     '/ui/backup.js',
+    '/ui/download-preflight.js',
     '/ui/inbox-submit.js',
     '/ui/preferences.js',
     '/ui/notifications.js',

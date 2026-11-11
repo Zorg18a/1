@@ -5,7 +5,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from storage.database import open_database, execute
 from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search, game_scan, reader_manifest
-from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress, backup_download, reader_images, recent_items, ui_assets
+from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress, backup_download, reader_images, recent_items, ui_assets, download_preflight
 from core.classify import classify
 from core.game_sources import quick_game_request
 from core.game_tags import save_tags_request
@@ -978,7 +978,7 @@ class H(BaseHTTPRequestHandler):
     def post(self):
         if self.path == '/ingest': return self.ingest()
         if self.path.startswith('/ext/'): return self.ext_post()
-        if self.path in ('/api/backup','/api/backup/inspect'): return backup_download.handle(self, db, lock)
+        if self.path in ('/api/backup','/api/backup/inspect','/api/preflight'): return download_preflight.handle(self, cfg.get('folder'), FF, ext_online()) if self.path == '/api/preflight' else backup_download.handle(self, db, lock)
         d = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or b'{}'); p = self.path
         if p == '/api/add':
             urls = list(dict.fromkeys(x.strip() for x in d['urls'].splitlines() if x.strip().startswith('http')))

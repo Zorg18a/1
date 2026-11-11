@@ -14,6 +14,7 @@ import { setupGameTags } from './game-tags.js';
 import { setupUpdatePreview } from './game-update-preview.js';
 import { setupSaveInventory } from './save-inventory.js';
 import { setupBackup } from './backup.js';
+import { setupDownloadPreflight } from './download-preflight.js';
 import { setupRecent } from './recent.js';
 
 const preferences = setupPreferences();
@@ -34,3 +35,4 @@ let recentStorage;
 try { recentStorage = window.localStorage; } catch { recentStorage = null; }
 setupRecent({ doc: document, win: window, storage: recentStorage, fetcher: window.fetch.bind(window) });
 setupBackup();
+setupDownloadPreflight();
