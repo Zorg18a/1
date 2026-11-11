@@ -32,6 +32,10 @@ jobs:
         env:
           PYTHONUTF8: '1'
         run: python -m scripts.browser_reader_smoke
+      - name: Check reader folder identity in headless Edge
+        env:
+          PYTHONUTF8: '1'
+        run: python -m scripts.browser_reader_identity_smoke
       - name: Check searches in headless Edge
         env:
           PYTHONUTF8: '1'

@@ -59,10 +59,17 @@ try:
     status, payload = request('GET', '/api/manga/1')
     assert status == 200 and json.loads(payload)['progress'] == {'cid':'12', 'page':0}
     token = json.loads(payload)['progress_snapshot']
-    assert len(token) == 64
-    conditional = {'id': 1, 'cid': '13', 'page': 2, 'slug': 'example', 'snapshot': token}
+    identity = json.loads(payload)['progress_identity']
+    assert len(token) == len(identity) == 64 and str(root).encode() not in payload
+    conditional = {'id': 1, 'cid': '13', 'page': 2, 'slug': 'example', 'snapshot': token, 'identity': identity}
     status, payload = request('POST', '/api/progress', json.dumps(conditional), {'X-MH':'1'})
     assert status == 200 and json.loads(payload)['snapshot'] != token
+    newer = json.loads(payload)['snapshot']
+    app.sql('update items set root=? where id=1', (str(root / 'different'),))
+    status, payload = request('POST', '/api/progress', json.dumps({**conditional, 'snapshot': newer, 'page': 9}), {'X-MH':'1'})
+    assert status == 409 and json.loads(payload)['error']
+    assert tuple(app.sql("select cid,page from progress where slug='example'")[0]) == ('13', 2)
+    app.sql('update items set root=? where id=1', (str(root),))
     status, payload = request('POST', '/api/progress', json.dumps({**conditional, 'page': 3}), {'X-MH':'1'})
     assert status == 409 and json.loads(payload)['error']
     status, payload = request('GET', '/api/manga/1')

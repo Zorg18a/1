@@ -24,4 +24,5 @@ def manga_info(item_id, sql):
     return {'title': manifest['title'], 'chapters': chapters, 'total': len(manifest.get('listed', [])),
             'have': len(manifest['chapters']), 'progress': dict(progress[0]) if progress else None,
             'progress_save_allowed': bool(matches), 'progress_slug': slug if matches else None,
+            'progress_identity': reader_snapshot.identity(item_id, slug, item['root']) if matches else None,
             'progress_snapshot': reader_snapshot.token(item_id, slug, progress[0] if progress else None) if matches else None}

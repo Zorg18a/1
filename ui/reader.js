@@ -14,7 +14,7 @@ let manga, current = 0, timer, requestNumber = 0, snapshot, resolvingConflict = 
 const announce = text => { $('reader-announcement').textContent = text; };
 const warnBeforeLeave = event => { event.preventDefault(); event.returnValue = true; };
 const conflict = setupProgressConflict({ doc: document, itemId: id, getSlug: () => manga?.progress_slug,
-  getChapters: () => manga?.chapters, confirm: text => window.confirm(text),
+  getIdentity: () => manga?.progress_identity, getChapters: () => manga?.chapters, confirm: text => window.confirm(text),
   onResolve: (next, position) => {
     if (timer !== undefined) { clearTimeout(timer); timer = undefined; save(); }
     return progress.resolveConflict(position, () => { snapshot = next; resolvingConflict = true; });
@@ -22,7 +22,7 @@ const conflict = setupProgressConflict({ doc: document, itemId: id, getSlug: () 
   onStart: () => { view.focus({ preventScroll: true }); $('reader-progress-status').textContent = 'Сохранение выбранной позиции…'; },
 });
 const progress = createProgressSaver({ onPending: position => conflict.update(position), send: async position => {
-  snapshot = await sendProgress({ ...position, snapshot });
+  snapshot = await sendProgress({ ...position, snapshot, identity: manga.progress_identity });
 }, onDirty: dirty => {
   window[dirty ? 'addEventListener' : 'removeEventListener']('beforeunload', warnBeforeLeave);
 }, status: state => {
@@ -49,7 +49,8 @@ const progress = createProgressSaver({ onPending: position => conflict.update(po
 $('reader-progress-retry').addEventListener('click', () => progress.retry());
 const canSave = () => manga?.progress_save_allowed === true && typeof manga.progress_slug === 'string' &&
   manga.progress_slug.length > 0 && manga.progress_slug.length <= 1024 && !manga.progress_slug.includes('\0') &&
-  typeof snapshot === 'string' && /^[0-9a-f]{64}$/.test(snapshot);
+  typeof snapshot === 'string' && /^[0-9a-f]{64}$/.test(snapshot) &&
+  typeof manga.progress_identity === 'string' && /^[0-9a-f]{64}$/.test(manga.progress_identity);
 
 function headerSize() {
   document.documentElement.style.setProperty('--reader-header-height', `${$('reader-header').getBoundingClientRect().height}px`);

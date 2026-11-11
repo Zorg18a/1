@@ -74,7 +74,7 @@ function describePosition(position, chapters) {
 }
 
 // Checking never writes; applying requires confirmation and the exact checked snapshot.
-export function setupProgressConflict({ doc, itemId, getSlug, getChapters, fetcher = fetch,
+export function setupProgressConflict({ doc, itemId, getSlug, getIdentity, getChapters, fetcher = fetch,
   confirm, onResolve, onStart = () => {} }) {
   const panel = doc.getElementById('reader-conflict');
   const pendingText = doc.getElementById('reader-conflict-pending');
@@ -103,7 +103,9 @@ export function setupProgressConflict({ doc, itemId, getSlug, getChapters, fetch
       const response = await fetcher('/api/manga/' + encodeURIComponent(itemId));
       if (!response.ok) throw new Error('request failed');
       const data = await response.json();
-      if (!data || data.error || data.progress_save_allowed !== true || data.progress_slug !== getSlug()) {
+      if (!data || data.error || data.progress_save_allowed !== true || data.progress_slug !== getSlug() ||
+          typeof data.progress_identity !== 'string' || !/^[0-9a-f]{64}$/.test(data.progress_identity) ||
+          data.progress_identity !== getIdentity()) {
         savedText.textContent = 'Не удалось подтвердить идентичность манги. Проверьте запись и манифест; позицию на сервере нельзя надёжно сопоставить.';
         return;
       }

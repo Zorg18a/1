@@ -35,11 +35,15 @@ def progress_request(data, db, lock):
         if 'snapshot' in data and (expected is None or not isinstance(snapshot, str) or
                                    not re.fullmatch(r'[0-9a-f]{64}', snapshot)):
             raise ValueError('Некорректный снимок позиции')
+        identity = data.get('identity')
+        if 'identity' in data and (snapshot is None or not isinstance(identity, str) or
+                                   not re.fullmatch(r'[0-9a-f]{64}', identity)):
+            raise ValueError('Некорректный идентификатор папки манги')
     except ValueError as exc:
         return {'error': str(exc)}, 400
     try:
         if snapshot is not None:
-            token = legacy_reader_progress.save_checked(db, lock, item_id, cid, page, expected, snapshot)
+            token = legacy_reader_progress.save_checked(db, lock, item_id, cid, page, expected, snapshot, identity)
             return ({'ok': 1, 'snapshot': token}, 200) if token is not None else ({'error': 'Манга не найдена в библиотеке'}, 404)
         saved = legacy_reader_progress.save(db, lock, item_id, cid, page, expected)
     except legacy_reader_progress.IdentityConflict:

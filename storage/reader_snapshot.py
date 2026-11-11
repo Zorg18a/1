@@ -36,3 +36,13 @@ def token(item_id, slug, row):
         digest.update(struct.pack('>Q', len(part)))
         digest.update(part)
     return digest.hexdigest()
+
+
+def identity(item_id, slug, root):
+    """Opaque process-local identity of an item and the exact stored root value."""
+    digest = hmac.new(_KEY, b'mediahub-reader-root-v1\0', hashlib.sha256)
+    for value in (item_id, slug, root):
+        part = _value(value)
+        digest.update(struct.pack('>Q', len(part)))
+        digest.update(part)
+    return digest.hexdigest()

@@ -9,7 +9,7 @@ function fixture(fetcher, options = {}) {
   const elements = Object.fromEntries(['reader-conflict', 'reader-conflict-pending', 'reader-conflict-saved', 'reader-conflict-check', 'reader-conflict-apply']
     .map(id => [id, { textContent: '', hidden: true, disabled: false, focus() { this.focused = true; }, addEventListener(_type, handler) { this.click = handler; } }]));
   const doc = { getElementById: id => elements[id] };
-  const panel = setupProgressConflict({ doc, itemId: '42', getSlug: () => 'example',
+  const panel = setupProgressConflict({ doc, itemId: '42', getSlug: () => 'example', getIdentity: () => 'd'.repeat(64),
     getChapters: () => [{ id: '1', label: '<Первая>' }, { id: '2', label: 'Вторая' }], fetcher,
     confirm: options.confirm ?? (() => false), onResolve: options.onResolve ?? (() => false), onStart: options.onStart });
   return { elements, panel, button: elements['reader-conflict-check'], apply: elements['reader-conflict-apply'], pending: elements['reader-conflict-pending'], saved: elements['reader-conflict-saved'] };
@@ -19,7 +19,7 @@ test('compare displays pending and fetched values without writes or adopting a t
   const requests = [];
   const f = fixture(async (...args) => {
     requests.push(args);
-    return { ok: true, json: async () => ({ progress_save_allowed: true, progress_slug: 'example',
+    return { ok: true, json: async () => ({ progress_save_allowed: true, progress_slug: 'example', progress_identity: 'd'.repeat(64),
       progress_snapshot: 'not adopted', chapters: [{ id: '2', label: 'Вторая' }], progress: { cid: '2', page: 3 } }) };
   });
   f.panel.update({ cid: '1', page: 0 }); f.panel.show();
@@ -41,7 +41,7 @@ test('reject mismatched identity, handle missing, invalid or unavailable progres
   f.panel.show();
   assert.match(f.pending.textContent, /Не удалось определить/);
   await f.button.click(); assert.match(f.saved.textContent, /идентичность/);
-  result = { progress_save_allowed: true, progress_slug: 'example', progress: null };
+  result = { progress_save_allowed: true, progress_slug: 'example', progress_identity: 'd'.repeat(64), progress: null };
   await f.button.click(); assert.match(f.saved.textContent, /Сохранённой позиции нет/);
   result.progress = { cid: '<script>', page: -1 };
   await f.button.click(); assert.match(f.saved.textContent, /неизвестный формат/);
@@ -58,7 +58,7 @@ test('repeated clicks do not overlap, and latest pending position remains availa
   const first = f.button.click(); f.button.click();
   assert.equal(calls, 1); assert.equal(f.button.disabled, true);
   f.panel.update({ cid: '2', page: 5 });
-  resolve({ ok: true, json: async () => ({ progress_save_allowed: true, progress_slug: 'example', progress: null }) });
+  resolve({ ok: true, json: async () => ({ progress_save_allowed: true, progress_slug: 'example', progress_identity: 'd'.repeat(64), progress: null }) });
   await first;
   assert.match(f.pending.textContent, /Вторая \(ID 2\), страница 6/);
   assert.equal(f.button.disabled, false);
@@ -79,7 +79,7 @@ test('conflict retains latest queued position, continues tracking without retryi
 test('replacement requires a valid comparison and explicit confirmation', async () => {
   const calls = []; let approved = false, starts = 0;
   const f = fixture(async () => ({ ok: true, json: async () => ({ progress_save_allowed: true,
-    progress_slug: 'example', progress_snapshot: 'a'.repeat(64), progress: { cid: '2', page: 3 }, chapters: [] }) }),
+    progress_slug: 'example', progress_identity: 'd'.repeat(64), progress_snapshot: 'a'.repeat(64), progress: { cid: '2', page: 3 }, chapters: [] }) }),
     { confirm: text => { calls.push(text); return approved; }, onResolve: (...args) => { calls.push(args); return true; },
       onStart: () => { starts++; } });
   const position = { cid: '1', page: 0 }; f.panel.update(position); f.panel.show();
@@ -94,7 +94,7 @@ test('replacement requires a valid comparison and explicit confirmation', async 
 
 test('changed pending position invalidates comparison, including while fetch is in flight', async () => {
   let resolve;
-  const result = { progress_save_allowed: true, progress_slug: 'example', progress_snapshot: 'b'.repeat(64), progress: null };
+  const result = { progress_save_allowed: true, progress_slug: 'example', progress_identity: 'd'.repeat(64), progress_snapshot: 'b'.repeat(64), progress: null };
   const f = fixture(() => new Promise(done => { resolve = done; }), { confirm: () => true, onResolve: () => { throw Error('must not save'); } });
   f.panel.update({ cid: '1', page: 0 }); f.panel.show();
   let check = f.button.click(); f.panel.invalidate();
@@ -130,7 +130,7 @@ test('queue resumes only the exact up-to-date pending object and token preparati
 test('failed resolution requires a fresh comparison, never retries automatically', async () => {
   let resolutions = 0;
   const f = fixture(async () => ({ ok: true, json: async () => ({ progress_save_allowed: true,
-    progress_slug: 'example', progress_snapshot: 'c'.repeat(64), progress: null }) }),
+    progress_slug: 'example', progress_identity: 'd'.repeat(64), progress_snapshot: 'c'.repeat(64), progress: null }) }),
     { confirm: () => true, onResolve: () => { resolutions++; return false; } });
   f.panel.update({ cid: '1', page: 0 }); f.panel.show();
   await f.button.click(); assert.equal(f.apply.disabled, false);
@@ -150,4 +150,17 @@ test('same-position scroll preserves the reviewed selection without weakening ch
   assert.equal(updates.at(-1), original);
   assert.equal(saver.resolveConflict(original, () => {}), true);
   assert.equal(sent, 2);
+});
+
+test('folder identity changes or missing identity cannot be approved', async () => {
+  let identity = 'e'.repeat(64), saves = 0;
+  const f = fixture(async () => ({ ok: true, json: async () => ({ progress_save_allowed: true,
+    progress_slug: 'example', progress_identity: identity, progress_snapshot: 'f'.repeat(64), progress: null }) }),
+    { confirm: () => true, onResolve: () => { saves++; return true; } });
+  f.panel.update({ cid: '1', page: 0 }); f.panel.show();
+  for (identity of ['e'.repeat(64), undefined, 'invalid']) {
+    await f.button.click(); assert.match(f.saved.textContent, /идентичность/);
+    assert.equal(f.apply.disabled, true); f.apply.click();
+  }
+  assert.equal(saves, 0);
 });

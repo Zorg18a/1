@@ -131,7 +131,7 @@ test('reader restores page, changes chapter, saves progress and applies display 
         chapters: [{ id: '1', label: 'Первая', files: ['001.jpg', '002.jpg'], done: true },
           { id: '2', label: '<Вторая>', files: ['001.jpg'], done: true },
           { id: '3', label: 'Пустая', files: [], done: false }], progress: { cid: '1', page: 1 },
-        progress_save_allowed: true, progress_slug: 'example', progress_snapshot: 'a'.repeat(64) }) };
+        progress_save_allowed: true, progress_slug: 'example', progress_snapshot: 'a'.repeat(64), progress_identity: 'c'.repeat(64) }) };
     };
     const source = (await readFile(new URL('../ui/reader.js', import.meta.url), 'utf8'))
       .replace("'./preferences.js'", `'${dataUrl(prefSource)}'`).replace("'./reader-modes.js'", `'${modeUrl}'`).replace("'./reader-images.js'", `'${imageUrl}'`).replace("'./reader-progress.js'", `'${progressUrl}'`);
@@ -152,7 +152,7 @@ test('reader restores page, changes chapter, saves progress and applies display 
     await new Promise(resolve => setTimeout(resolve, 750));
     assert.equal(f.win.listeners.beforeunload, undefined);
     const post = requests.find(request => request.url === '/api/progress');
-    assert.deepEqual(JSON.parse(post.options.body), { id: '42', cid: '1', page: 1, slug: 'example', snapshot: 'a'.repeat(64) });
+    assert.deepEqual(JSON.parse(post.options.body), { id: '42', cid: '1', page: 1, slug: 'example', snapshot: 'a'.repeat(64), identity: 'c'.repeat(64) });
     assert.equal(post.options.headers['X-MH'], '1');
     assert.equal(f.elements.s.textContent, 'стр. 2/2');
     const makeElement = f.doc.createElement;
@@ -163,14 +163,14 @@ test('reader restores page, changes chapter, saves progress and applies display 
     assert.equal(f.elements['reader-announcement'].textContent, 'Глава 2 из 3');
     assert.equal(f.elements.n.disabled, false);
     const chapterPost = requests.filter(request => request.url === '/api/progress').at(-1);
-    assert.deepEqual(JSON.parse(chapterPost.options.body), { id: '42', cid: '2', page: 0, slug: 'example', snapshot: 'b'.repeat(64) });
+    assert.deepEqual(JSON.parse(chapterPost.options.body), { id: '42', cid: '2', page: 0, slug: 'example', snapshot: 'b'.repeat(64), identity: 'c'.repeat(64) });
     f.win.listeners.scroll();
     f.elements.n.dispatch('click'); await flush();
     assert.equal(f.elements.n.disabled, true);
     assert.equal(f.elements.v.querySelectorAll('img').length, 0);
     const posts = requests.filter(request => request.url === '/api/progress');
     assert.equal(posts.length, 3);
-    assert.deepEqual(JSON.parse(posts.at(-1).options.body), { id: '42', cid: '2', page: 0, slug: 'example', snapshot: 'b'.repeat(64) });
+    assert.deepEqual(JSON.parse(posts.at(-1).options.body), { id: '42', cid: '2', page: 0, slug: 'example', snapshot: 'b'.repeat(64), identity: 'c'.repeat(64) });
     assert.equal(f.win.listeners.beforeunload, undefined);
   } finally {
     for (const [name, value] of Object.entries(previous)) {

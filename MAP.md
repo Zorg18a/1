@@ -33,13 +33,13 @@
 - `core/playback.py` — изолированные правила и валидация позиции медиа.
 - `core/reader_progress.py` — валидация данных будущей timestamped записи прогресса манги.
 - `core/legacy_reader_progress.py`, `storage/legacy_reader_progress.py`, `storage/reader_manifest.py`, `storage/reader_snapshot.py` — проверка ключа и снимка позиции манги, запись в действующую схему без миграции и замены всей строки.
-- `tests/test_reader_manifest_identity.py`, `tests/test_reader_snapshot.py` — идентичность, конкурентное сравнение позиции и границы его защиты.
+- `tests/test_reader_manifest_identity.py`, `tests/test_reader_root_identity.py`, `tests/test_reader_snapshot.py` — идентичность, смена папки, конкурентное сравнение позиции и границы защиты.
 - `scripts/browser_diagnostics.py`, `tests/test_browser_diagnostics.py` — диагностика ошибок браузера в изолированных smoke-тестах.
 - `storage/reader_revision.py`, `tests/test_reader_revision.py`, `tests/test_reader_revision_migration.py` — неподключённый эксперимент ревизий читалки, проверка схемы, backup-first и compare-and-write на временных БД.
 - `ui/reader-progress.js` — очередь записи, сравнение позиций при конфликте и подтверждаемая условная замена.
 - `tests/test_legacy_reader_progress.py`, `tests/test_reader_progress.mjs`, `tests/test_reader_conflict.mjs` — временная БД, ошибки, очередь и интерфейс конфликтов.
 - `ui/reader-images.js` — сообщения об ошибках загрузки страниц и ручной повтор.
-- `scripts/browser_reader_smoke.py` — Edge-проверка читалки и повтора на временной манге.
+- `scripts/browser_reader_smoke.py`, `scripts/browser_reader_identity_smoke.py` — Edge-проверки читалки, разрешения конфликта и смены папки на временной манге.
 - `docs/2026-11-10-mediahub-player-reader-design.md` — приложенная спецификация на проверке.
 - `docs/player-reader-plan.md` — аудит реализации и поэтапный план плеера/читалки.
 - `docs/ux-improvement-plan.md` — полный план UX-аудита и приоритеты личного Windows-приложения.
