@@ -11,6 +11,7 @@ UI_FILES = frozenset((
     '/ui/cancel-all.js',
     '/ui/delete-dialog.js',
     '/ui/game-library.js',
+    '/ui/game-search.js',
     '/ui/game-scan-settings.js',
     '/ui/library-view.js',
     '/ui/library-search.js',

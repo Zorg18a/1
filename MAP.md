@@ -19,6 +19,7 @@
 - `scripts/browser_search_smoke.py` — поиск в библиотеках, версиях и вкладках в Edge.
 - `core/ui_assets.py` — точный список файлов UI, разрешённых локальным сервером.
 - `ui/library-search.js`, `tests/test_library_search.mjs` — счётчик и сброс поиска/типа основной библиотеки, индикация ошибок и проверка порядка запросов.
+- `ui/game-search.js`, `tests/test_game_search.mjs` — счётчик, сброс игровых фильтров, повтор загрузки и порядок запросов.
 - `storage/recent_items.py`, `core/recent_items.py`, `ui/recent.js` — проверка текущей записи и локальная история открытий плеера/читалки без миграции.
 - `tests/test_recent_items.py`, `tests/test_recent.mjs`, `scripts/browser_recent_smoke.py` — метаданные, история, ограничения и проверка в Edge на временных данных.
 - `core/byte_range.py` — правила одиночного HTTP Byte Range и ответов на неразрешимые диапазоны.
