@@ -31,7 +31,7 @@ def run(root):
                 page.get_by_role('button', name='Добавить', exact=True).click()
                 dialog = page.locator('#addDlg')
                 urls = dialog.get_by_label('Ссылки'); urls.fill('https://example.invalid/test')
-                details = dialog.locator('details').filter(has=dialog.get_by_text('Проверка условий загрузки (необязательно)'))
+                details = dialog.locator('details').filter(has_text='Проверка условий загрузки (необязательно)')
                 expect(details.locator('li')).to_have_count(0)
                 details.locator('summary').focus(); page.keyboard.press('Enter')
                 action = details.get_by_role('button', name='Проверить условия загрузки')
@@ -44,7 +44,7 @@ def run(root):
                 assert sorted(path.name for path in downloads.iterdir()) == before_dialog
                 dialog.get_by_role('button', name='Отмена').click()
                 page.get_by_role('button', name='Добавить', exact=True).click()
-                expect(details).not_to_have_attribute('open', '')
+                assert not details.evaluate("e => e.open")
                 expect(details.locator('li')).to_have_count(0)
                 expect(urls).to_have_value('https://example.invalid/test')
                 dialog.get_by_role('button', name='Отмена').click()
