@@ -31,7 +31,7 @@
 - `core/playback.py` — изолированные правила и валидация позиции медиа.
 - `core/reader_progress.py` — валидация данных будущей timestamped записи прогресса манги.
 - `core/legacy_reader_progress.py`, `storage/legacy_reader_progress.py` — проверяемая запись в действующую схему без миграции и замены всей строки.
-- `storage/reader_revision.py`, `tests/test_reader_revision.py` — неподключённый эксперимент ревизий читалки с compare-and-write и тестами на временных БД.
+- `storage/reader_revision.py`, `tests/test_reader_revision.py`, `tests/test_reader_revision_migration.py` — неподключённый эксперимент ревизий читалки, проверка схемы, backup-first и compare-and-write на временных БД.
 - `ui/reader-progress.js` — сериализация и ручной повтор записи позиции в одной вкладке.
 - `tests/test_legacy_reader_progress.py`, `tests/test_reader_progress.mjs` — временная БД, ошибки, очередь записи и неопределённый ответ.
 - `ui/reader-images.js` — сообщения об ошибках загрузки страниц и ручной повтор.
