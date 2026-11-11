@@ -5,6 +5,7 @@ UI_FILES = frozenset((
     '/ui/backup.js',
     '/ui/download-preflight.js',
     '/ui/download-preflight-dialog.js',
+    '/ui/extension-guide.js',
     '/ui/inbox-submit.js',
     '/ui/preferences.js',
     '/ui/notifications.js',

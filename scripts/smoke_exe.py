@@ -60,6 +60,7 @@ def check(process):
     assert get(8765, '/ui/backup.js')[0] == 200
     assert get(8765, '/ui/download-preflight.js')[0] == 200
     assert get(8765, '/ui/download-preflight-dialog.js')[0] == 200
+    assert get(8765, '/ui/extension-guide.js')[0] == 200
     connection = http.client.HTTPConnection('127.0.0.1', 8765, timeout=5)
     try:
         connection.request('POST', '/api/preflight', headers={'X-MH': '1'})

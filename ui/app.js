@@ -17,6 +17,7 @@ import { setupSaveInventory } from './save-inventory.js';
 import { setupBackup } from './backup.js';
 import { setupDownloadPreflight } from './download-preflight.js';
 import { setupDialogPreflight } from './download-preflight-dialog.js';
+import { setupExtensionGuide } from './extension-guide.js';
 import { setupRecent } from './recent.js';
 
 const preferences = setupPreferences();
@@ -40,3 +41,4 @@ setupRecent({ doc: document, win: window, storage: recentStorage, fetcher: windo
 setupBackup();
 setupDownloadPreflight();
 setupDialogPreflight();
+setupExtensionGuide();
