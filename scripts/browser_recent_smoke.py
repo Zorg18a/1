@@ -38,6 +38,18 @@ def run(root):
                 expect(recent.get_by_role('button', name='Читалка: Манга')).to_be_visible()
                 expect(recent.get_by_role('button', name='Плеер: Аудио')).to_be_visible()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
+                page.evaluate("localStorage.setItem('mediahub.player.position.v1.1', 'sentinel')")
+                remove = recent.get_by_role('button', name='Убрать из истории: Манга')
+                remove.focus(); page.keyboard.press('Enter')
+                expect(recent.get_by_role('button', name='Обновить историю')).to_be_focused()
+                expect(recent.locator('[role=status]')).to_contain_text('Позиция и файлы не изменены')
+                expect(recent.get_by_role('button', name='Читалка: Манга')).to_have_count(0)
+                expect(recent.get_by_role('button', name='Плеер: Аудио')).to_be_visible()
+                assert page.evaluate("localStorage.getItem('mediahub.player.position.v1.1')") == 'sentinel'
+                page.goto(base + '/m/2')
+                page.wait_for_function("JSON.parse(localStorage.getItem('mediahub.recent.v1') || '[]').length === 2")
+                page.goto(base + '/')
+                expect(recent.get_by_role('button', name='Читалка: Манга')).to_be_visible()
                 recent.get_by_role('button', name='Читалка: Манга').click()
                 expect(page).to_have_url(__import__('re').compile(r'/m/2\?recent=[0-9a-f]{64}$'))
                 expect(page.locator('#v')).to_have_text('Нет доступных глав')
@@ -47,7 +59,7 @@ def run(root):
                 recent.get_by_role('button', name='Плеер: Аудио').click()
                 expect(recent.locator('[role=status]')).to_contain_text('изменился')
                 assert page.url == base + '/'
-                page.reload()
+                recent.get_by_role('button', name='Обновить историю').click()
                 expect(recent.get_by_role('button', name='Плеер: Аудио')).to_have_count(0)
                 old_token = '0' * 64
                 page.goto(base + '/p/1?recent=' + old_token)
