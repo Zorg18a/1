@@ -1,4 +1,5 @@
 """Exercise the packaged Windows application without accessing user data."""
+import hashlib
 import http.client
 import json
 import os
@@ -92,6 +93,7 @@ def check(process):
         connection.request('POST', '/api/backup', headers={'X-MH': '1'})
         response = connection.getresponse(); data = response.read()
         assert response.status == 200 and response.getheader('Content-Type') == 'application/vnd.sqlite3'
+        assert response.getheader('X-Backup-SHA256') == hashlib.sha256(data).hexdigest()
     finally:
         connection.close()
     copy = sqlite3.connect(':memory:')
@@ -106,7 +108,8 @@ def check(process):
         connection.request('POST', '/api/backup/inspect', body=data,
                            headers={'X-MH': '1', 'Content-Type': 'application/octet-stream'})
         response = connection.getresponse(); inspected = json.loads(response.read())
-        assert response.status == 200 and inspected == {'ok': 1, 'items': 0, 'progress': 0}
+        assert response.status == 200 and inspected == {'ok': 1, 'items': 0, 'progress': 0,
+                                                        'sha256': hashlib.sha256(data).hexdigest()}
     finally:
         connection.close()
     status, body = get(8765, '/api/subtitles/999')
