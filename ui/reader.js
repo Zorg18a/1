@@ -2,6 +2,7 @@ import { readPreferences } from './preferences.js';
 import { setupReaderModes } from './reader-modes.js';
 import { setupReaderImage } from './reader-images.js';
 import { createProgressSaver, sendProgress, setupProgressConflict } from './reader-progress.js';
+import { expectedRecentIdentity, recordRecent } from './recent.js';
 
 const $ = id => document.getElementById(id);
 const id = location.pathname.split('/')[2];
@@ -149,6 +150,8 @@ async function load() {
     const response = await fetch('/api/manga/' + encodeURIComponent(id));
     const data = await response.json();
     if (!response.ok || data.error || !Array.isArray(data.chapters)) throw new Error('not found');
+    const recentExpected = expectedRecentIdentity(location.search);
+    if (recentExpected !== null && (!recentExpected || data.image_identity !== recentExpected)) throw new Error('changed');
     manga = data;
     snapshot = data.progress_snapshot;
     if (!canRead()) {
@@ -156,6 +159,7 @@ async function load() {
       $('c').disabled = $('p').disabled = $('n').disabled = true;
       return;
     }
+    void recordRecent({ storage, fetcher: fetch, id, kind: 'manga', liveIdentity: data.image_identity });
     if (!canSave()) $('reader-error').textContent = 'Позиция не сохраняется: данные записи, манифеста или снимка позиции не проверены. Проверьте данные библиотеки.';
     document.title = data.title;
     $('t').textContent = `${data.title} · скачано глав ${data.have} из ${data.total || data.have}`;

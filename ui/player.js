@@ -2,6 +2,7 @@ import { readPreferences } from './preferences.js';
 import { setupPlayerKeys } from './player-keys.js';
 import { setupSubtitleSelector } from './player-subtitles.js';
 import { setupPlayerProgress } from './player-progress.js';
+import { expectedRecentIdentity, recordRecent } from './recent.js';
 
 const $ = id => document.getElementById(id);
 const id = location.pathname.split('/')[2];
@@ -36,6 +37,8 @@ async function load() {
     const response = await fetch('/api/player-preview/' + itemId);
     const item = await response.json();
     if (!response.ok || !['video', 'audio'].includes(item.kind) || item.src !== `/f/${itemId}`) throw new Error('item');
+    const recentExpected = expectedRecentIdentity(location.search);
+    if (recentExpected !== null && (!recentExpected || item.local_position_identity !== recentExpected)) throw new Error('changed');
     const title = typeof item.title === 'string' ? item.title : 'Материал';
     document.title = `${title} — MediaHub`;
     $('player-title').textContent = title;
@@ -63,6 +66,7 @@ async function load() {
       status: $('player-progress-status'), reset: $('player-restart'), win: window });
     media.src = item.src;
     container.append(media);
+    void recordRecent({ storage, fetcher: fetch, id: itemId, kind: item.kind, liveIdentity: item.local_position_identity });
     if (item.kind === 'audio' && expected && !item.subtitle_warning) $('player-warning').textContent = 'Отображение субтитров для аудио зависит от браузера.';
     const subtitlesChanged = setupSubtitleSelector({ doc: document, media, container: $('player-subtitle-control'),
       select: $('player-subtitles'), storage, itemId, expected });

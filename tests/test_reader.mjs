@@ -12,6 +12,7 @@ const imageSource = await readFile(new URL('../ui/reader-images.js', import.meta
 const imageUrl = dataUrl(imageSource);
 const { setupReaderImage } = await import(imageUrl);
 const progressUrl = dataUrl(await readFile(new URL('../ui/reader-progress.js', import.meta.url), 'utf8'));
+const recentUrl = dataUrl(await readFile(new URL('../ui/recent.js', import.meta.url), 'utf8'));
 
 class Element {
   constructor(tag = 'div') {
@@ -134,7 +135,7 @@ test('reader restores page, changes chapter, saves progress and applies display 
         progress_save_allowed: true, progress_slug: 'example', progress_snapshot: 'a'.repeat(64), progress_identity: 'c'.repeat(64), image_identity: 'd'.repeat(64) }) };
     };
     const source = (await readFile(new URL('../ui/reader.js', import.meta.url), 'utf8'))
-      .replace("'./preferences.js'", `'${dataUrl(prefSource)}'`).replace("'./reader-modes.js'", `'${modeUrl}'`).replace("'./reader-images.js'", `'${imageUrl}'`).replace("'./reader-progress.js'", `'${progressUrl}'`);
+      .replace("'./preferences.js'", `'${dataUrl(prefSource)}'`).replace("'./reader-modes.js'", `'${modeUrl}'`).replace("'./reader-images.js'", `'${imageUrl}'`).replace("'./reader-progress.js'", `'${progressUrl}'`).replace("'./recent.js'", `'${recentUrl}'`);
     await import(dataUrl(source)); await flush(); await flush();
     const images = f.elements.v.querySelectorAll('img');
     assert.equal(images.length, 2);
@@ -187,7 +188,7 @@ test('reader reports a failed manga request without creating pages', async () =>
     globalThis.location = { pathname: '/m/404' };
     globalThis.fetch = async () => ({ ok: false, json: async () => ({ error: 'not found' }) });
     const source = (await readFile(new URL('../ui/reader.js', import.meta.url), 'utf8'))
-      .replace("'./preferences.js'", `'${dataUrl(prefSource)}'`).replace("'./reader-modes.js'", `'${modeUrl}'`).replace("'./reader-images.js'", `'${imageUrl}'`).replace("'./reader-progress.js'", `'${progressUrl}'`);
+      .replace("'./preferences.js'", `'${dataUrl(prefSource)}'`).replace("'./reader-modes.js'", `'${modeUrl}'`).replace("'./reader-images.js'", `'${imageUrl}'`).replace("'./reader-progress.js'", `'${progressUrl}'`).replace("'./recent.js'", `'${recentUrl}'`);
     await import(dataUrl(source + '\n// failed request')); await flush();
     assert.match(f.elements['reader-error'].textContent, /Не удалось открыть тайтл.*обновите страницу/);
     assert.equal(f.elements.v.querySelectorAll('img').length, 0);

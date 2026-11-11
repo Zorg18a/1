@@ -6,6 +6,7 @@ const dataUrl = source => `data:text/javascript;base64,${Buffer.from(source).toS
 const prefUrl = dataUrl(await readFile(new URL('../ui/preferences.js', import.meta.url), 'utf8'));
 const subtitlesUrl = dataUrl(await readFile(new URL('../ui/player-subtitles.js', import.meta.url), 'utf8'));
 const progressUrl = dataUrl(await readFile(new URL('../ui/player-progress.js', import.meta.url), 'utf8'));
+const recentUrl = dataUrl(await readFile(new URL('../ui/recent.js', import.meta.url), 'utf8'));
 const keysSource = (await readFile(new URL('../ui/player-keys.js', import.meta.url), 'utf8'))
   .replace("'./preferences.js'", `'${prefUrl}'`).replaceAll("'./player-subtitles.js'", `'${subtitlesUrl}'`);
 const keysUrl = dataUrl(keysSource);
@@ -106,7 +107,7 @@ test('preview constructs native media and safe tracks without autoplay or server
         { lang: 'en', label: 'unsafe', url: 'https://evil.invalid/track.vtt' }] }) }; };
     const source = (await readFile(new URL('../ui/player.js', import.meta.url), 'utf8'))
       .replace("'./preferences.js'", `'${prefUrl}'`).replace("'./player-keys.js'", `'${keysUrl}'`)
-      .replace("'./player-subtitles.js'", `'${subtitlesUrl}'`).replace("'./player-progress.js'", `'${progressUrl}'`);
+      .replace("'./player-subtitles.js'", `'${subtitlesUrl}'`).replace("'./player-progress.js'", `'${progressUrl}'`).replace("'./recent.js'", `'${recentUrl}'`);
     await import(dataUrl(source)); await flush();
     assert.deepEqual(calls, ['/api/player-preview/1']);
     assert.equal(f.elements['player-title'].textContent, '<Unsafe>');
@@ -136,7 +137,7 @@ test('preview reports missing material and does not create a media element', asy
     globalThis.fetch = async () => ({ ok: false, json: async () => ({ error: 'not found' }) });
     const source = (await readFile(new URL('../ui/player.js', import.meta.url), 'utf8'))
       .replace("'./preferences.js'", `'${prefUrl}'`).replace("'./player-keys.js'", `'${keysUrl}'`)
-      .replace("'./player-subtitles.js'", `'${subtitlesUrl}'`).replace("'./player-progress.js'", `'${progressUrl}'`);
+      .replace("'./player-subtitles.js'", `'${subtitlesUrl}'`).replace("'./player-progress.js'", `'${progressUrl}'`).replace("'./recent.js'", `'${recentUrl}'`);
     await import(dataUrl(source + '\n// missing')); await flush();
     assert.equal(f.elements['player-container'].children.length, 0);
     assert.equal(f.elements['player-error'].hidden, false);
@@ -158,7 +159,7 @@ test('audio preview renders decorative cover and warns about unavailable subtitl
       id: 2, title: 'Audio', kind: 'audio', src: '/f/2', cover: '/t/2', subs: [], subtitle_warning: true }) });
     const source = (await readFile(new URL('../ui/player.js', import.meta.url), 'utf8'))
       .replace("'./preferences.js'", `'${prefUrl}'`).replace("'./player-keys.js'", `'${keysUrl}'`)
-      .replace("'./player-subtitles.js'", `'${subtitlesUrl}'`).replace("'./player-progress.js'", `'${progressUrl}'`);
+      .replace("'./player-subtitles.js'", `'${subtitlesUrl}'`).replace("'./player-progress.js'", `'${progressUrl}'`).replace("'./recent.js'", `'${recentUrl}'`);
     await import(dataUrl(source + '\n// audio')); await flush();
     const [cover, media] = f.elements['player-container'].children;
     assert.equal(cover.tagName, 'IMG'); assert.equal(cover.alt, ''); assert.equal(cover.src, '/t/2');

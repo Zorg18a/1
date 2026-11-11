@@ -5,7 +5,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from storage.database import open_database, execute
 from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search, game_scan, reader_manifest
-from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress, backup_download, reader_images
+from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress, backup_download, reader_images, recent_items, ui_assets
 from core.classify import classify
 from core.game_sources import quick_game_request
 from core.game_tags import save_tags_request
@@ -831,7 +831,6 @@ def game_auto_loop():  # по расписанию (0 часов = выключ�
                 due = [r['id'] for r in sql("select * from items where kind='game'") if ginfo(r).get('meta', {}).get('thread') and ginfo(r).get('auto', True) and time.time() - ginfo(r).get('checked', 0) > hrs * 3600]
                 if due: new_job('games:auto', 'gamecheck', ids=due[:20], title='Проверка игр по расписанию')
         except Exception: pass
-
 # ---------- HTTP ----------
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
@@ -928,7 +927,7 @@ class H(BaseHTTPRequestHandler):
     def get(self):
         u = urlparse(self.path); p = unquote(u.path); qs = {k: v[0] for k, v in parse_qs(u.query).items()}
         if p.startswith(('/sub/', '/api/subtitles/', '/api/player-preview/')): return player_preview.get(self, p, sql) if p.startswith('/api/player-preview/') else media_subtitles.get(self, p, sql)
-        if p == '/' or p in ('/ui/app.js','/ui/backup.js','/ui/inbox-submit.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/cancel-all.js', '/ui/delete-dialog.js', '/ui/game-library.js', '/ui/game-scan-settings.js', '/ui/library-view.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-images.js', '/ui/reader-progress.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js','/ui/player-keys.js','/ui/player-subtitles.js','/ui/player-progress.js','/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
+        if ui_assets.allowed(p): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
         if p == '/api/jobs':
             now = time.time(); keys = ('id', 'url', 'kind', 'status', 'pct', 'title', 'eta', 'daily', 'start_at')
             return self.js([dict({k: j.get(k) for k in keys}, speed=(j.get('speed') or 0) if now - j.get('_ts', now) < 8 else 0) for j in jobs.values()])
@@ -954,6 +953,7 @@ class H(BaseHTTPRequestHandler):
             return self.js(out)
         mm = re.fullmatch(r'/([mp])/\d+', p)
         if mm: return self.file(ASSETS / 'ui' / ('reader.html' if mm.group(1) == 'm' else 'player.html'))
+        if p.startswith('/api/recent/'): return recent_items.get(self, p, sql)
         mm = re.match(r'/api/manga/(\d+)$', p)
         if mm: return self.js(reader_manifest.manga_info(int(mm.group(1)), sql))
         mm = re.match(r'/mi/(\d+)/(\d+)/(\d{3}\.\w+)$', p)

@@ -40,6 +40,13 @@ try:
     assert item['src'] == '/f/1' and item['position_available'] is False
     assert len(item['local_position_identity']) == 64
     assert item['local_position_identity'] == json.loads(request('/api/player-preview/1')[2])['local_position_identity']
+    status, _, recent_body = request('/api/recent/1')
+    recent = json.loads(recent_body)
+    assert status == 200 and recent['identity'] == item['local_position_identity'] == recent['live_identity']
+    assert str(root) not in recent_body.decode('utf8')
+    assert request('/api/recent/3')[0] == request('/api/recent/4')[0] == request('/api/recent/999')[0] == 404
+    app.sql("update items set url='replacement' where id=1")
+    assert json.loads(request('/api/recent/1')[2])['identity'] != recent['identity']
     assert json.loads(request('/api/player-preview/4')[2])['local_position_identity'] is None
     assert len(item['subs']) == 1 and item['subs'][0]['lang'] == 'en'
     assert str(root) not in body.decode('utf8')

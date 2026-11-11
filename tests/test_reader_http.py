@@ -48,6 +48,11 @@ try:
     assert request('GET', '/mi/1/12/001.png') == (200, b'PNG test page')
     assert request('GET', '/mi/1/12/001.png?retry=1-1') == (200, b'PNG test page')
     image_id = data['image_identity']; assert len(image_id) == 64
+    status, recent_data = request('GET', '/api/recent/1')
+    recent = json.loads(recent_data)
+    assert status == 200 and recent['live_identity'] == image_id and str(root).encode() not in recent_data
+    assert request('GET', '/ui/recent.js')[0] == 200
+    assert request('GET', '/api/recent/1', headers={'Host':'evil.example'})[0] == 403
     image_path = '/mi/1/12/001.png?identity=' + image_id
     assert request('GET', image_path) == (200, b'PNG test page')
     assert request('GET', image_path, headers={'Host':'evil.example'})[0] == 403
@@ -57,6 +62,8 @@ try:
         status, payload = request('GET', '/mi/1/12/001.png?' + query)
         assert status == 400 and json.loads(payload)['error']
     app.sql('update items set root=? where id=1', (str(other),))
+    changed = json.loads(request('GET', '/api/recent/1')[1])
+    assert changed['identity'] != recent['identity'] and changed['live_identity'] != image_id
     status, payload = request('GET', image_path)
     assert status == 409 and json.loads(payload)['error']
     assert request('GET', '/mi/1/12/001.png') == (200, b'Other manga page')
