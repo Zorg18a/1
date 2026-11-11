@@ -15,10 +15,13 @@ const announce = text => { $('reader-announcement').textContent = text; };
 const warnBeforeLeave = event => { event.preventDefault(); event.returnValue = true; };
 const conflict = setupProgressConflict({ doc: document, itemId: id, getSlug: () => manga?.progress_slug,
   getChapters: () => manga?.chapters, confirm: text => window.confirm(text),
-  onResolve: (next, position) => progress.resolveConflict(position, () => { snapshot = next; resolvingConflict = true; }),
+  onResolve: (next, position) => {
+    if (timer !== undefined) { clearTimeout(timer); timer = undefined; save(); }
+    return progress.resolveConflict(position, () => { snapshot = next; resolvingConflict = true; });
+  },
   onStart: () => { view.focus({ preventScroll: true }); $('reader-progress-status').textContent = 'Сохранение выбранной позиции…'; },
 });
-const progress = createProgressSaver({ onChange: () => conflict.invalidate(), onPending: position => conflict.update(position), send: async position => {
+const progress = createProgressSaver({ onPending: position => conflict.update(position), send: async position => {
   snapshot = await sendProgress({ ...position, snapshot });
 }, onDirty: dirty => {
   window[dirty ? 'addEventListener' : 'removeEventListener']('beforeunload', warnBeforeLeave);

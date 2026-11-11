@@ -138,3 +138,16 @@ test('failed resolution requires a fresh comparison, never retries automatically
   assert.equal(resolutions, 1); assert.equal(f.apply.disabled, true);
   assert.equal(f.elements['reader-conflict'].hidden, false); assert.match(f.saved.textContent, /Проверьте/);
 });
+
+test('same-position scroll preserves the reviewed selection without weakening change detection', async () => {
+  const updates = []; let reject, sent = 0;
+  const saver = createProgressSaver({ status: () => {}, onPending: p => updates.push(p), send: () => {
+    sent++; return new Promise((_resolve, fail) => { reject = fail; });
+  } });
+  const original = { id: '42', slug: 'example', cid: '1', page: 0 };
+  saver.submit(original); reject(Object.assign(Error('conflict'), { code: 'identity-conflict' })); await flush();
+  saver.markDirty(); saver.submit({ ...original });
+  assert.equal(updates.at(-1), original);
+  assert.equal(saver.resolveConflict(original, () => {}), true);
+  assert.equal(sent, 2);
+});
