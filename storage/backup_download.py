@@ -34,7 +34,7 @@ def snapshot(db, lock):
                     raise BackupError('Превышено время копирования базы')
             with closing(sqlite3.connect(':memory:')) as target:
                 db.backup(target, pages=128, progress=progress, sleep=0.05)
-                if target.execute('pragma integrity_check').fetchall() != [('ok',)]:
+                if target.execute('pragma integrity_check(1)').fetchall() != [('ok',)]:
                     raise BackupError('Копия не прошла проверку целостности')
                 raw = target.serialize()
             if len(raw) > MAX_BYTES or len(raw) < 100 or raw[:16] != b'SQLite format 3\x00':
@@ -48,7 +48,7 @@ def snapshot(db, lock):
                 raise BackupError('Неизвестный формат журнала копии')
             with closing(sqlite3.connect(':memory:')) as verified:
                 verified.deserialize(raw)
-                if verified.execute('pragma integrity_check').fetchall() != [('ok',)]:
+                if verified.execute('pragma integrity_check(1)').fetchall() != [('ok',)]:
                     raise BackupError('Итоговая копия не прошла проверку целостности')
             return raw
         except BackupError:

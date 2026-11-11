@@ -2,6 +2,7 @@
 import http.client
 import json
 import os
+import sqlite3
 from pathlib import Path
 import subprocess
 import sys
@@ -65,6 +66,20 @@ def check(process):
     assert get(8765, '/ui/player.css')[0] == 200
     status, body = get(8765, '/api/library')
     assert status == 200 and json.loads(body) == []
+    connection = http.client.HTTPConnection('127.0.0.1', 8765, timeout=30)
+    try:
+        connection.request('POST', '/api/backup', headers={'X-MH': '1'})
+        response = connection.getresponse(); data = response.read()
+        assert response.status == 200 and response.getheader('Content-Type') == 'application/vnd.sqlite3'
+    finally:
+        connection.close()
+    copy = sqlite3.connect(':memory:')
+    try:
+        copy.deserialize(data)
+        assert copy.execute('pragma integrity_check').fetchone()[0] == 'ok'
+        assert copy.execute('select count(*) from items').fetchone()[0] == 0
+    finally:
+        copy.close()
     status, body = get(8765, '/api/subtitles/999')
     assert status == 404 and 'error' in json.loads(body)
     status, body = get(8765, '/api/player-preview/999')
