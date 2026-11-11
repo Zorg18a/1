@@ -32,12 +32,15 @@ def request(path, headers=None):
         conn.close()
 try:
     status, _, page = request('/p/1')
-    assert status == 200 and b'/ui/player.js' in page and 'позиция воспроизведения пока не сохраняется' in page.decode('utf8')
+    assert status == 200 and b'/ui/player.js' in page and 'позиция сохраняется в этом браузере' in page.decode('utf8')
     assert 'for="player-subtitles"' in page.decode('utf8')
     status, _, body = request('/api/player-preview/1')
     item = json.loads(body)
     assert status == 200 and item['title'] == '<Title>' and item['kind'] == 'audio'
     assert item['src'] == '/f/1' and item['position_available'] is False
+    assert len(item['local_position_identity']) == 64
+    assert item['local_position_identity'] == json.loads(request('/api/player-preview/1')[2])['local_position_identity']
+    assert json.loads(request('/api/player-preview/4')[2])['local_position_identity'] is None
     assert len(item['subs']) == 1 and item['subs'][0]['lang'] == 'en'
     assert str(root) not in body.decode('utf8')
     status, headers, body = request(item['subs'][0]['url'])
