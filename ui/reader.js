@@ -47,7 +47,8 @@ const progress = createProgressSaver({ onPending: position => conflict.update(po
   else if (state === 'dirty' && retry.hidden) message.textContent = '';
 }});
 $('reader-progress-retry').addEventListener('click', () => progress.retry());
-const canSave = () => manga?.progress_save_allowed === true && typeof manga.progress_slug === 'string' &&
+const canRead = () => typeof manga?.image_identity === 'string' && /^[0-9a-f]{64}$/.test(manga.image_identity);
+const canSave = () => canRead() && manga?.progress_save_allowed === true && typeof manga.progress_slug === 'string' &&
   manga.progress_slug.length > 0 && manga.progress_slug.length <= 1024 && !manga.progress_slug.includes('\0') &&
   typeof snapshot === 'string' && /^[0-9a-f]{64}$/.test(snapshot) &&
   typeof manga.progress_identity === 'string' && /^[0-9a-f]{64}$/.test(manga.progress_identity);
@@ -60,7 +61,7 @@ if (window.ResizeObserver) new window.ResizeObserver(headerSize).observe($('read
 headerSize();
 
 function changeChapter(offset) {
-  if (!manga?.chapters[current + offset]) return false;
+  if (!canRead() || !manga?.chapters[current + offset]) return false;
   openChapter(current + offset, 0, true);
   return true;
 }
@@ -75,7 +76,7 @@ function textElement(tag, text, className = '') {
 
 async function openChapter(index, page = 0, focus = false) {
   const chapter = manga?.chapters[index];
-  if (!chapter) return;
+  if (!chapter || !canRead()) return;
   if (timer !== undefined) { clearTimeout(timer); timer = undefined; save(); }
   const ticket = ++requestNumber;
   current = index;
@@ -99,7 +100,7 @@ async function openChapter(index, page = 0, focus = false) {
     image.addEventListener('load', () => {
       if (image.naturalWidth) image.style.setProperty('--natural-width', `${image.naturalWidth}px`);
     });
-    const src = `/mi/${encodeURIComponent(id)}/${encodeURIComponent(chapter.id)}/${encodeURIComponent(file)}`;
+    const src = `/mi/${encodeURIComponent(id)}/${encodeURIComponent(chapter.id)}/${encodeURIComponent(file)}?identity=${manga.image_identity}`;
     const error = setupReaderImage({ doc: document, image, number: number + 1, src });
     view.append(image, error);
     image.src = src;
@@ -150,6 +151,11 @@ async function load() {
     if (!response.ok || data.error || !Array.isArray(data.chapters)) throw new Error('not found');
     manga = data;
     snapshot = data.progress_snapshot;
+    if (!canRead()) {
+      $('reader-error').textContent = 'Страницы не загружаются: идентичность записи не проверена. Обновите читалку и проверьте данные библиотеки.';
+      $('c').disabled = $('p').disabled = $('n').disabled = true;
+      return;
+    }
     if (!canSave()) $('reader-error').textContent = 'Позиция не сохраняется: данные записи, манифеста или снимка позиции не проверены. Проверьте данные библиотеки.';
     document.title = data.title;
     $('t').textContent = `${data.title} · скачано глав ${data.have} из ${data.total || data.have}`;

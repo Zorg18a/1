@@ -1,11 +1,13 @@
 """Reader root identity fences on temporary, unmigrated SQLite databases."""
 import json
 from pathlib import Path
+import re
 import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
 
+from core import reader_images
 from core.legacy_reader_progress import progress_request
 from storage import reader_manifest, reader_snapshot
 from storage.database import execute, open_database
@@ -48,6 +50,35 @@ class ReaderRootIdentityTests(unittest.TestCase):
         self.assertEqual(tuple(self.db.execute('select cid,page from progress').fetchone()), ('1', 0))
         self.assertFalse(self.db.in_transaction)
         self.assertEqual(self.request(snapshot=current['progress_snapshot'], identity=current['progress_identity'])[1], 200)
+
+    def test_image_identity_tracks_url_root_and_process_key(self):
+        initial = self.read()['image_identity']
+        self.assertNotEqual(initial, self.read()['progress_identity'])
+        self.db.execute("update items set url='manga:different' where id=1"); self.db.commit()
+        changed = self.read()
+        self.assertFalse(changed['progress_save_allowed'])
+        self.assertNotEqual(initial, changed['image_identity'])
+        self.db.execute("update items set url='manga:same',root=? where id=1", (str(self.second),)); self.db.commit()
+        self.assertNotEqual(initial, self.read()['image_identity'])
+        self.db.execute('update items set root=? where id=1', (str(self.first),)); self.db.commit()
+        self.assertEqual(initial, self.read()['image_identity'])  # Value ABA cannot be detected.
+        with patch.object(reader_snapshot, '_KEY', b'new-process-key'):
+            self.assertNotEqual(initial, self.read()['image_identity'])
+
+    def test_image_uses_the_checked_root_if_record_changes_after_query(self):
+        identity = self.read()['image_identity']
+        def sql(statement, args):
+            rows = execute(self.db, self.lock, statement, args)
+            execute(self.db, self.lock, 'update items set root=? where id=1', (str(self.second),))
+            return rows
+        class Handler:
+            def file(self, path): return path
+            def js(self, body, status): raise AssertionError((status, body))
+            def send_error(self, status): raise AssertionError(status)
+        match = re.fullmatch(r'/mi/(\d+)/(\d+)/(\d{3}\.\w+)', '/mi/1/12/001.png')
+        result = reader_images.get(Handler(), match, 'identity=' + identity, sql)
+        self.assertEqual(result, self.first / 'chapters' / '12' / '001.png')
+        self.assertEqual(self.db.execute('select root from items').fetchone()[0], str(self.second))
 
     def test_old_snapshot_clients_remain_compatible_and_bad_identity_is_rejected(self):
         data = self.read(); token = data['progress_snapshot']

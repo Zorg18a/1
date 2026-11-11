@@ -12,7 +12,7 @@ export function setupReaderImage({ doc, image, number, src }) {
   let retrying = false, attempt = 0;
   image.addEventListener('error', () => {
     retrying = false;
-    message.textContent = `Не удалось загрузить страницу ${number}. Проверьте файл и подключение к MediaHub.`;
+    message.textContent = `Не удалось загрузить страницу ${number}. Проверьте файл и подключение к MediaHub. Если запись изменилась, обновите читалку.`;
     panel.hidden = false;
   });
   image.addEventListener('load', () => {
@@ -29,7 +29,7 @@ export function setupReaderImage({ doc, image, number, src }) {
     retrying = true;
     message.textContent = `Повторная загрузка страницы ${number}…`;
     // Avoid reusing a cached failed response for the same local page.
-    image.src = `${src}?retry=${Date.now()}-${++attempt}`;
+    image.src = `${src}${src.includes('?') ? '&' : '?'}retry=${Date.now()}-${++attempt}`;
   });
   return panel;
 }

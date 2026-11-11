@@ -5,7 +5,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from storage.database import open_database, execute
 from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search, game_scan, reader_manifest
-from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress, backup_download
+from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress, backup_download, reader_images
 from core.classify import classify
 from core.game_sources import quick_game_request
 from core.game_tags import save_tags_request
@@ -957,9 +957,7 @@ class H(BaseHTTPRequestHandler):
         mm = re.match(r'/api/manga/(\d+)$', p)
         if mm: return self.js(reader_manifest.manga_info(int(mm.group(1)), sql))
         mm = re.match(r'/mi/(\d+)/(\d+)/(\d{3}\.\w+)$', p)
-        if mm:
-            r = sql('select * from items where id=? and kind=?', (mm.group(1), 'manga'))
-            return self.file(Path(r[0]['root']) / 'chapters' / mm.group(2) / mm.group(3)) if r else self.send_error(404)
+        if mm: return reader_images.get(self, mm, u.query, sql)
         m = re.match(r'/([fst])/(\d+)(?:/(.*))?$', p)
         if m:
             r = sql('select * from items where id=?', (m.group(2),))

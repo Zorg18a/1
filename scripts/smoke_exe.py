@@ -49,6 +49,8 @@ def check(process):
     assert get(8765, '/', 'example.invalid')[0] == 403
     status, reader = get(8765, '/m/1')
     assert status == 200 and b'reader-conflict-check' in reader
+    status, body = get(8765, '/mi/1/12/001.png?identity=bad')
+    assert status == 400 and json.loads(body)['error']
     assert get(8765, '/ui/app.js')[0] == 200
     assert get(8765, '/ui/backup.js')[0] == 200
     assert get(8765, '/ui/game-library.js')[0] == 200

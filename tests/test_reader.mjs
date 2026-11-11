@@ -131,7 +131,7 @@ test('reader restores page, changes chapter, saves progress and applies display 
         chapters: [{ id: '1', label: 'Первая', files: ['001.jpg', '002.jpg'], done: true },
           { id: '2', label: '<Вторая>', files: ['001.jpg'], done: true },
           { id: '3', label: 'Пустая', files: [], done: false }], progress: { cid: '1', page: 1 },
-        progress_save_allowed: true, progress_slug: 'example', progress_snapshot: 'a'.repeat(64), progress_identity: 'c'.repeat(64) }) };
+        progress_save_allowed: true, progress_slug: 'example', progress_snapshot: 'a'.repeat(64), progress_identity: 'c'.repeat(64), image_identity: 'd'.repeat(64) }) };
     };
     const source = (await readFile(new URL('../ui/reader.js', import.meta.url), 'utf8'))
       .replace("'./preferences.js'", `'${dataUrl(prefSource)}'`).replace("'./reader-modes.js'", `'${modeUrl}'`).replace("'./reader-images.js'", `'${imageUrl}'`).replace("'./reader-progress.js'", `'${progressUrl}'`);
@@ -139,7 +139,7 @@ test('reader restores page, changes chapter, saves progress and applies display 
     const images = f.elements.v.querySelectorAll('img');
     assert.equal(images.length, 2);
     assert.equal(images[1].scrolled, true);
-    assert.equal(images[1].src, '/mi/42/1/002.jpg');
+    assert.equal(images[1].src, '/mi/42/1/002.jpg?identity=' + 'd'.repeat(64));
     images[1].naturalWidth = 640; images[1].dispatch('load');
     assert.equal(images[1].style.values['--natural-width'], '640px');
     assert.equal(f.doc.documentElement.dataset.theme, 'light');

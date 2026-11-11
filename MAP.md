@@ -38,7 +38,7 @@
 - `storage/reader_revision.py`, `tests/test_reader_revision.py`, `tests/test_reader_revision_migration.py` — неподключённый эксперимент ревизий читалки, проверка схемы, backup-first и compare-and-write на временных БД.
 - `ui/reader-progress.js` — очередь записи, сравнение позиций при конфликте и подтверждаемая условная замена.
 - `tests/test_legacy_reader_progress.py`, `tests/test_reader_progress.mjs`, `tests/test_reader_conflict.mjs` — временная БД, ошибки, очередь и интерфейс конфликтов.
-- `ui/reader-images.js` — сообщения об ошибках загрузки страниц и ручной повтор.
+- `core/reader_images.py`, `ui/reader-images.js`, `tests/test_reader_image_identity.mjs` — условная загрузка страниц и повтор с сохранением идентификатора.
 - `scripts/browser_reader_smoke.py`, `scripts/browser_reader_identity_smoke.py` — Edge-проверки читалки, разрешения конфликта и смены папки на временной манге.
 - `docs/2026-11-10-mediahub-player-reader-design.md` — приложенная спецификация на проверке.
 - `docs/player-reader-plan.md` — аудит реализации и поэтапный план плеера/читалки.

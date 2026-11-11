@@ -38,11 +38,20 @@ def token(item_id, slug, row):
     return digest.hexdigest()
 
 
-def identity(item_id, slug, root):
-    """Opaque process-local identity of an item and the exact stored root value."""
-    digest = hmac.new(_KEY, b'mediahub-reader-root-v1\0', hashlib.sha256)
-    for value in (item_id, slug, root):
+def _identity(domain, item_id, key, root):
+    digest = hmac.new(_KEY, domain, hashlib.sha256)
+    for value in (item_id, key, root):
         part = _value(value)
         digest.update(struct.pack('>Q', len(part)))
         digest.update(part)
     return digest.hexdigest()
+
+
+def identity(item_id, slug, root):
+    """Opaque process-local identity used for progress writes."""
+    return _identity(b'mediahub-reader-root-v1\0', item_id, slug, root)
+
+
+def view_identity(item_id, url, root):
+    """Bind image requests to the exact library URL and root, even for read-only manga."""
+    return _identity(b'mediahub-reader-images-v1\0', item_id, url, root)

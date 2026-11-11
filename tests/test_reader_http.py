@@ -21,6 +21,10 @@ chapter.mkdir(parents=True)
 manifest = {'slug':'example', 'title':'Тест', 'listed':[{'cid':'12', 'label':'Глава 1'}],
             'chapters':{'12':{'label':'Глава 1', 'files':['001.png'], 'expected':1, 'done':True}}}
 (root / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False), encoding='utf8')
+other = root.parent / 'other'
+(other / 'chapters' / '12').mkdir(parents=True)
+(other / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False), encoding='utf8')
+(other / 'chapters' / '12' / '001.png').write_bytes(b'Other manga page')
 app.sql("insert into items(id,title,kind,path,root,url) values(1,'Тест','manga',?,?,?)",
         (str(chapter / '001.png'), str(root), 'manga:example'))
 server = ThreadingHTTPServer(('127.0.0.1', 0), app.H)
@@ -43,6 +47,22 @@ try:
     assert data['progress_save_allowed'] is True and data['progress_slug'] == 'example'
     assert request('GET', '/mi/1/12/001.png') == (200, b'PNG test page')
     assert request('GET', '/mi/1/12/001.png?retry=1-1') == (200, b'PNG test page')
+    image_id = data['image_identity']; assert len(image_id) == 64
+    image_path = '/mi/1/12/001.png?identity=' + image_id
+    assert request('GET', image_path) == (200, b'PNG test page')
+    assert request('GET', image_path, headers={'Host':'evil.example'})[0] == 403
+    assert request('GET', image_path + '&retry=1-1') == (200, b'PNG test page')
+    assert request('GET', image_path, headers={'Range':'bytes=0-2'}) == (206, b'PNG')
+    for query in ('identity=', 'identity=bad', 'identity=' + image_id + '&identity=' + image_id):
+        status, payload = request('GET', '/mi/1/12/001.png?' + query)
+        assert status == 400 and json.loads(payload)['error']
+    app.sql('update items set root=? where id=1', (str(other),))
+    status, payload = request('GET', image_path)
+    assert status == 409 and json.loads(payload)['error']
+    assert request('GET', '/mi/1/12/001.png') == (200, b'Other manga page')
+    status, payload = request('GET', '/api/manga/1')
+    assert status == 200 and json.loads(payload)['image_identity'] != image_id
+    app.sql('update items set root=? where id=1', (str(root),))
     body = json.dumps({'id':1, 'cid':'12', 'page':0})
     assert request('POST', '/api/progress', body)[0] == 403
     assert request('POST', '/api/progress', body, {'X-MH':'1'})[0] == 200
@@ -83,6 +103,8 @@ try:
     mismatch = json.loads(payload)
     assert status == 200 and mismatch['progress_save_allowed'] is False and mismatch['progress_slug'] is None
     assert mismatch['progress'] == {'cid':'12', 'page':1}
+    assert request('GET', image_path)[0] == 409
+    assert request('GET', '/mi/1/12/001.png?identity=' + mismatch['image_identity']) == (200, b'PNG test page')
     assert not app.sql("select * from progress where slug='other'")
     assert request('GET', '/api/manga/1', headers={'Host':'evil.example'})[0] == 403
 finally:
