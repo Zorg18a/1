@@ -543,7 +543,6 @@ def manga_info(i):
     chs = sorted(allc.values(), key=lambda c: [float(x) for x in re.findall(r'\d+(?:\.\d+)?', c['label'])] or [0])
     return {'title': man['title'], 'chapters': chs, 'total': len(man.get('listed', [])), 'have': len(man['chapters']), 'progress': dict(pr[0]) if pr else None}
 
-# ---------- оценка размера ----------
 def preview(tok, d):
     import yt_dlp
     p = prev[tok]; kind = d['kind']
@@ -990,7 +989,7 @@ class H(BaseHTTPRequestHandler):
     def post(self):
         if self.path == '/ingest': return self.ingest()
         if self.path.startswith('/ext/'): return self.ext_post()
-        if self.path == '/api/backup': return backup_download.download(self, db, lock)
+        if self.path in ('/api/backup','/api/backup/inspect'): return backup_download.handle(self, db, lock)
         d = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or b'{}'); p = self.path
         if p == '/api/add':
             urls = list(dict.fromkeys(x.strip() for x in d['urls'].splitlines() if x.strip().startswith('http')))

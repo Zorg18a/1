@@ -80,6 +80,14 @@ def check(process):
         assert copy.execute('select count(*) from items').fetchone()[0] == 0
     finally:
         copy.close()
+    connection = http.client.HTTPConnection('127.0.0.1', 8765, timeout=30)
+    try:
+        connection.request('POST', '/api/backup/inspect', body=data,
+                           headers={'X-MH': '1', 'Content-Type': 'application/octet-stream'})
+        response = connection.getresponse(); inspected = json.loads(response.read())
+        assert response.status == 200 and inspected == {'ok': 1, 'items': 0, 'progress': 0}
+    finally:
+        connection.close()
     status, body = get(8765, '/api/subtitles/999')
     assert status == 404 and 'error' in json.loads(body)
     status, body = get(8765, '/api/player-preview/999')

@@ -37,13 +37,23 @@ def run(root):
                 with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)) as db:
                     assert db.execute('select title from items where id=55').fetchone()[0] == 'Данные из WAL'
                     assert db.execute('pragma integrity_check').fetchone()[0] == 'ok'
-                expect(panel.get_by_role('status')).to_contain_text('Проверьте загрузки')
+                statuses = panel.get_by_role('status')
+                expect(statuses.nth(0)).to_contain_text('Проверьте загрузки')
+                app.sql("update items set title='Позже' where id=55")
+                panel.get_by_label('Файл копии для проверки').set_input_files(str(path))
+                panel.get_by_role('button', name='Проверить копию').click()
+                expect(statuses.nth(1)).to_contain_text('Целостность и минимальная структура проверены')
+                expect(statuses.nth(1)).to_contain_text('восстановление не выполнялось')
+                invalid = root / 'invalid.db'; invalid.write_bytes(b'x' * 100)
+                panel.get_by_label('Файл копии для проверки').set_input_files(str(invalid))
+                panel.get_by_role('button', name='Проверить копию').click()
+                expect(statuses.nth(1)).to_contain_text('Проверка не выполнена')
                 page.route('**/api/backup', lambda route: route.abort())
                 button.click()
-                expect(panel.get_by_role('status')).to_contain_text('Не удалось скачать копию')
+                expect(statuses.nth(0)).to_contain_text('Не удалось скачать копию')
                 expect(button).to_be_enabled()
-                assert app.sql('select title from items where id=55')[0]['title'] == 'Данные из WAL'
-                print('Edge: database download, contents and failed request passed')
+                assert app.sql('select title from items where id=55')[0]['title'] == 'Позже'
+                print('Edge: database download, inspection and error handling passed')
             finally:
                 browser.close()
     finally:

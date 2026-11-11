@@ -1,8 +1,8 @@
-"""Experimental offline SQLite backup inspection and restore to a NEW file.
+"""SQLite backup inspection and experimental restore to a NEW file.
 
-Not wired to the application. Paths and their parent directories must be trusted;
-this does not protect against external replacement, reparse points, or hostile ACLs.
-It never overwrites a destination or restores over a live database.
+Only in-memory inspect_bytes is wired to the application; file restoration is not.
+Path-based operations require trusted paths and do not protect against external
+replacement, reparse points, or hostile ACLs. Restore never overwrites a destination.
 """
 from contextlib import closing
 from dataclasses import dataclass
@@ -35,7 +35,7 @@ def _connect_readonly(path):
 def _inspect(db):
     # This is intentionally a minimum compatibility check, not full schema validation.
     db.execute('pragma trusted_schema=off')
-    if db.execute('pragma integrity_check').fetchall() != [('ok',)]:
+    if db.execute('pragma integrity_check(1)').fetchall() != [('ok',)]:
         raise RestoreError('База не прошла проверку целостности')
     required = {
         'items': {'id', 'title', 'author', 'topic', 'kind', 'path', 'root', 'url', 'size', 'added'},
@@ -60,6 +60,29 @@ def inspect_backup(source):
             return _inspect(db)
     except (OSError, sqlite3.Error) as exc:
         raise RestoreError('Не удалось открыть или проверить резервную копию') from exc
+
+
+def inspect_bytes(data, *, timeout=30.0, max_bytes=64 * 1024 * 1024):
+    """Inspect an uploaded standalone SQLite image in memory without touching live DB."""
+    if not isinstance(data, bytes) or not 100 <= len(data) <= max_bytes:
+        raise RestoreError('Размер файла должен быть от 100 байт до 64 МиБ')
+    if data[:16] != b'SQLite format 3\0' or data[18:20] != b'\x01\x01':
+        raise RestoreError('Нужна автономная копия SQLite без WAL')
+    deadline = time.monotonic() + timeout
+    try:
+        with closing(sqlite3.connect(':memory:')) as db:
+            db.execute('pragma trusted_schema=off')
+            db.deserialize(data)
+            db.execute('pragma query_only=on')
+            db.set_progress_handler(lambda: int(time.monotonic() > deadline), 1000)
+            result = _inspect(db)
+            if time.monotonic() > deadline:
+                raise RestoreError('Превышено время проверки копии')
+            return result
+    except RestoreError:
+        raise
+    except (sqlite3.Error, AttributeError, MemoryError, OverflowError) as exc:
+        raise RestoreError('Не удалось проверить файл копии') from exc
 
 
 def restore_to_new_file(source, destination, timeout=30.0):
