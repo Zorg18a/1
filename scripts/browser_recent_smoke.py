@@ -4,12 +4,14 @@ import os
 from pathlib import Path
 import tempfile
 import threading
+import traceback
 import wave
 from http.server import ThreadingHTTPServer
 
 
 def run(root):
     from playwright.sync_api import expect, sync_playwright
+    from scripts.browser_diagnostics import BrowserDiagnostics
     os.environ['MEDIAHUB_DATA_DIR'] = str(root)
     from legacy import app
     audio = root / 'audio.wav'
@@ -24,8 +26,10 @@ def run(root):
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(channel='msedge', headless=True)
+            diagnostics = None
             try:
                 page = browser.new_page(viewport={'width': 320, 'height': 800})
+                diagnostics = BrowserDiagnostics(page)
                 base = f'http://127.0.0.1:{server.server_port}'
                 page.goto(base + '/p/1')
                 expect(page.locator('#player-title')).to_have_text('Аудио')
@@ -74,6 +78,12 @@ def run(root):
                 expect(recent.locator('[role=status]')).to_contain_text('очищена')
                 assert page.evaluate("localStorage.getItem('mediahub.recent.v1')") is None
                 print('Edge: recent history, revalidation, guarded opening and clear passed')
+            except Exception:
+                text = traceback.format_exc() + '\nBrowser diagnostics:\n' + (diagnostics.report() if diagnostics else '(page not created)')
+                if os.environ.get('GITHUB_ACTIONS'):
+                    text = text[-6000:].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                    print(f'::error title=Recent history Edge smoke failed::{text}', flush=True)
+                raise
             finally:
                 browser.close()
     finally:
