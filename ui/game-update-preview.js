@@ -5,16 +5,26 @@ function formatBytes(bytes) {
   return n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(2)} ГиБ` : `${(n / 1024 ** 2).toFixed(2)} МиБ`;
 }
 
-export async function inspectCandidate(gameId, candidate, button, status, verifyData = false) {
+export async function inspectCandidate(gameId, candidate, button, status, verifyData = false, paths = null) {
   if (button.disabled) return;
   button.disabled = true; status.textContent = verifyData ? 'Проверяю данные и CRC ZIP…' : 'Проверяю метаданные ZIP…';
   try {
     const response = await fetch('/api/game/zip-inspect', { method: 'POST',
       headers: { 'X-MH': '1', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: gameId, name: candidate.name, identity: candidate.identity, ...(verifyData ? { verify_data: true } : {}) }) });
+      body: JSON.stringify({ id: gameId, name: candidate.name, identity: candidate.identity,
+        ...(verifyData ? { verify_data: true } : paths ? { list_names: true } : {}) }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Не удалось проверить ZIP');
     const summary = result.inspection;
+    if (paths) {
+      if (!Array.isArray(summary.paths) || summary.paths.length > 200 || typeof summary.paths_truncated !== 'boolean' ||
+          summary.paths.some(p => typeof p.path !== 'string' || !['file', 'directory'].includes(p.kind))) throw Error('Некорректный список ZIP');
+      const note = document.createElement('p'); note.className = 'mu';
+      note.textContent = `Показано записей ZIP: ${summary.paths.length}${summary.paths_truncated ? ' (только первые 200)' : ''}. Имена из каталога могут вводить в заблуждение; список не проверяет содержимое и не является планом установки.`;
+      const list = document.createElement('ul');
+      for (const entry of summary.paths) { const item = document.createElement('li'); item.dir = 'auto'; item.textContent = `${entry.path} (${entry.kind === 'directory' ? 'папка' : 'файл'})`; list.append(item); }
+      paths.append(note, list);
+    }
     status.textContent = verifyData
       ? `Данные и CRC проверены: файлов ${summary.verified_files}, всего ${formatBytes(summary.verified_bytes)}. Это не подтверждает безопасность, подлинность или завершённость загрузки; архив не установлен.`
       : `Метаданные ZIP прошли предварительную проверку: файлов ${summary.files}, всего ${formatBytes(summary.uncompressed_bytes)}. Содержимое и CRC не проверены; безопасность и завершённость загрузки не подтверждены.`;
@@ -82,7 +92,7 @@ export function setupUpdatePreview() {
     const section = document.createElement('section');
     section.className = 'update-preview';
     section.innerHTML = `<h4>Поиск скачанного обновления</h4>
-      <p class="mu">1. Скачайте архив вручную в папку Incoming_Downloads (она создаётся здесь). 2. Найдите возможный архив. 3. Выберите проверку и изучите её результат. Пока карточка открыта, поиск повторяется каждые 15 секунд. Архив не устанавливается и не изменяется. Проверка данных ZIP ограничена 128 МиБ сжатых и 256 МиБ распакованных данных; она не подтверждает безопасность или подлинность.</p>
+      <p class="mu">1. Скачайте архив вручную в папку Incoming_Downloads (она создаётся здесь). 2. Найдите возможный архив. 3. Проверка метаданных показывает до 200 первых записей ZIP; изучите результат. Пока карточка открыта, поиск повторяется каждые 15 секунд. Архив не устанавливается и не изменяется. Проверка данных ZIP ограничена 128 МиБ сжатых и 256 МиБ распакованных данных; она не подтверждает безопасность или подлинность.</p>
       <button type="button" class="btn">Обновить поиск</button>
       <p role="status" aria-live="polite" class="mu"></p><div class="update-results"></div>
       <h4>Возможные сохранения</h4>
@@ -140,7 +150,7 @@ export function setupUpdatePreview() {
                 try { await action(); }
                 finally { actions.forEach(el => { el.disabled = false; }); }
               };
-              check.addEventListener('click', () => run(check, () => inspectCandidate(game.id, candidate, check, report)));
+              check.addEventListener('click', () => run(check, () => inspectCandidate(game.id, candidate, check, report, false, comparison)));
               verify.addEventListener('click', () => run(verify, () => inspectCandidate(game.id, candidate, verify, report, true)));
               compare.addEventListener('click', () => run(compare, () => compareCandidate(game.id, candidate, compare, report, comparison)));
               item.append(check, verify, compare, report, comparison);

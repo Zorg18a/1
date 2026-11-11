@@ -41,6 +41,11 @@ try:
     assert post('/api/game/zip-inspect', {'id': id, 'name': candidate['name'], 'identity': 'a' * 64})[0] == 409
     status, result = post('/api/game/zip-inspect', payload)
     assert status == 200 and result['inspection']['files'] == 1, (status, result)
+    status, listing = post('/api/game/zip-inspect', dict(payload, list_names=True))
+    assert status == 200 and listing['inspection']['paths'] == [{'path': 'game/file.txt', 'kind': 'file'}]
+    assert not listing['inspection']['paths_truncated']
+    assert post('/api/game/zip-inspect', dict(payload, list_names=True), False)[0] == 403
+    assert post('/api/game/zip-inspect', dict(payload, list_names=True, verify_data=True))[0] == 400
     assert post('/api/game/zip-inspect', dict(payload, verify_data='true'))[0] == 400
     status, result = post('/api/game/zip-inspect', dict(payload, verify_data=True))
     assert status == 200 and result['inspection']['verified_files'] == 1, (status, result)

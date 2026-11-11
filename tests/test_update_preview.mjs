@@ -116,6 +116,8 @@ test('ZIP data check is only started by its labeled button', async () => {
       return { ok: true, json: async () => url.endsWith('incoming') ?
         { folder: 'x', candidates: [{ name: 'Game.zip', identity: 'a', size: 1 }] } :
         JSON.parse(options.body).compare_saves ? { inspection: { save_comparison: { game_folder: 'x', incomplete: false, candidates: [] } } } :
+        JSON.parse(options.body).list_names ? { inspection: { files: 1, uncompressed_bytes: 1, paths_truncated: true,
+          paths: [{ path: '<img src=x>', kind: 'file' }] } } :
         { inspection: { verified_files: 1, verified_bytes: 1 } } };
     };
     setupUpdatePreview();
@@ -126,11 +128,18 @@ test('ZIP data check is only started by its labeled button', async () => {
     assert.equal(buttons.length, 3);
     assert.match(buttons[2].getAttribute('aria-label'), /сохранений с ZIP.*Game.zip/);
     assert.match(buttons[1].getAttribute('aria-label'), /CRC.*Game.zip/);
+    await buttons[0].click();
+    assert.equal(requests[1].body.list_names, true);
+    const listing = results.children[1].children[0].children[4];
+    assert.match(listing.children[0].textContent, /только первые 200/);
+    assert.equal(listing.children[1].children[0].textContent, '<img src=x> (файл)');
+    assert.match(results.children[1].children[0].children[3].textContent, /CRC не проверены/);
     await buttons[1].click();
-    assert.equal(requests[1].body.verify_data, true);
+    assert.equal(listing.children.length, 0);
+    assert.equal(requests[2].body.verify_data, true);
     assert.match(results.children[1].children[0].children[3].textContent, /CRC проверены/);
     await buttons[2].click();
-    assert.equal(requests[2].body.compare_saves, true);
+    assert.equal(requests[3].body.compare_saves, true);
     assert.match(results.children[1].children[0].children[3].textContent, /не план установки/);
   } finally {
     for (const k of Object.keys(old)) { if (old[k] === undefined) delete globalThis[k]; else globalThis[k] = old[k]; }

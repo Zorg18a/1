@@ -131,7 +131,7 @@
 - `tests/test_save_inventory.py`, `tests/test_save_inventory.mjs` — просмотр состава сохранений, ограничения и интерфейс.
 - `tests/test_guarded_read.py` — проверка Windows NTFS-дескрипторов и отказов на временных файлах.
 - `tests/test_save_compare.py`, `tests/test_save_compare_request.py`, `tests/test_save_compare_http.py`, `tests/test_save_compare.mjs` — сравнение путей, изоляция, API и интерфейс.
-- `tests/test_zip_inspection_http.py` — изолированная проверка ZIP через HTTP.
+- `tests/test_zip_inspection_http.py`, `tests/test_zip_listing.py`, `scripts/browser_zip_listing_smoke.py` — HTTP и ограниченный список имён ZIP на временных архивах и в Edge.
 - `tests/test_game_tags.py` — проверки валидации, сохранения и отката тегов.
 - `tests/test_game_tags_http.py` — сканирование и HTTP тегов во временной библиотеке.
 - `tests/test_game_library.mjs` — сортировка, фильтр размеров и игровые метки.

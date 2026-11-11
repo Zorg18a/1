@@ -9,14 +9,20 @@ from storage.zip_inspection import ArchiveChanged, ensure_identity, inspect_zip
 from storage.save_discovery import DiscoveryBusy, discover_saves
 from storage.zip_content import VerificationBusy
 
+DISPLAY_PATH_LIMIT = 200
+
 
 def inspect_request(data, lookup, parse_name, download_folder, games_root):
     if not isinstance(data, dict) or type(data.get('id')) is not int or data['id'] < 1:
         return {'error': 'Некорректный идентификатор игры'}, 400
     verify_data = data.get('verify_data', False)
     compare_saves = data.get('compare_saves', False)
-    if type(verify_data) is not bool or type(compare_saves) is not bool or verify_data and compare_saves:
+    list_names = data.get('list_names', False)
+    if (type(verify_data) is not bool or type(compare_saves) is not bool or type(list_names) is not bool or
+            sum((verify_data, compare_saves, list_names)) > 1):
         return {'error': 'Некорректный режим проверки ZIP'}, 400
+    if list_names and set(data) != {'id', 'name', 'identity', 'list_names'}:
+        return {'error': 'Список принимает только выбранный архив и id игры'}, 400
     if compare_saves and set(data) - {'id', 'name', 'identity', 'compare_saves'}:
         return {'error': 'Сопоставление принимает только выбранный архив и id игры'}, 400
     name, identity = data.get('name'), data.get('identity')
@@ -38,7 +44,11 @@ def inspect_request(data, lookup, parse_name, download_folder, games_root):
             return {'error': 'Имя архива не соответствует выбранной игре'}, 400
         if entry['identity'] != identity:
             return {'error': 'Архив изменился: обновите поиск'}, 409
-        result = inspect_zip(folder / name, identity, verify_data=verify_data, include_names=compare_saves)
+        result = inspect_zip(folder / name, identity, verify_data=verify_data, include_names=compare_saves or list_names)
+        if list_names:
+            entries = result.pop('_entries')
+            result['paths'] = entries[:DISPLAY_PATH_LIMIT]
+            result['paths_truncated'] = len(entries) > DISPLAY_PATH_LIMIT
         if compare_saves:
             entries = result.pop('_entries')
             preview = discover_saves(games_root, game['path'])

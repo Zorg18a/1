@@ -32,6 +32,10 @@ jobs:
         env:
           PYTHONUTF8: '1'
         run: python -m scripts.browser_preflight_smoke
+      - name: Check ZIP listing in headless Edge
+        env:
+          PYTHONUTF8: '1'
+        run: python -m scripts.browser_zip_listing_smoke
       - name: Check extension setup guide in headless Edge
         env:
           PYTHONUTF8: '1'
