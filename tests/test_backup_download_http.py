@@ -9,7 +9,7 @@ import unittest
 class BackupHttpTests(unittest.TestCase):
     def test_download_and_security(self):
         code = r'''
-import http.client, json, os, sqlite3, threading
+import hashlib, http.client, json, os, sqlite3, threading
 from pathlib import Path
 from http.server import ThreadingHTTPServer
 from legacy import app
@@ -41,6 +41,7 @@ try:
     assert status == 200 and headers['Content-Type'] == 'application/vnd.sqlite3'
     assert headers['Cache-Control'] == 'no-store' and headers['X-Content-Type-Options'] == 'nosniff'
     assert 'attachment' in headers['Content-Disposition'] and int(headers['Content-Length']) == len(image)
+    assert headers['X-Backup-SHA256'] == hashlib.sha256(image).hexdigest()
     backup = root / 'download.db'; backup.write_bytes(image)
     db = sqlite3.connect(backup.as_uri() + '?mode=ro', uri=True)
     assert db.execute('select title from items').fetchone()[0] == 'WAL data'

@@ -1,5 +1,6 @@
 """Headless Edge backup download against temporary data only."""
 from contextlib import closing
+import hashlib
 import os
 from pathlib import Path
 import sqlite3
@@ -39,11 +40,16 @@ def run(root):
                     assert db.execute('pragma integrity_check').fetchone()[0] == 'ok'
                 statuses = panel.get_by_role('status')
                 expect(statuses.nth(0)).to_contain_text('Проверьте загрузки')
+                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                expect(statuses.nth(0)).to_contain_text(digest)
+                assert panel.evaluate('e => e.scrollWidth <= e.clientWidth + 1')
                 app.sql("update items set title='Позже' where id=55")
                 panel.get_by_label('Файл копии для проверки').set_input_files(str(path))
                 panel.get_by_role('button', name='Проверить копию').click()
                 expect(statuses.nth(1)).to_contain_text('Целостность и минимальная структура проверены')
                 expect(statuses.nth(1)).to_contain_text('восстановление не выполнялось')
+                expect(statuses.nth(1)).to_contain_text(digest)
+                assert panel.evaluate('e => e.scrollWidth <= e.clientWidth + 1')
                 invalid = root / 'invalid.db'; invalid.write_bytes(b'x' * 100)
                 panel.get_by_label('Файл копии для проверки').set_input_files(str(invalid))
                 panel.get_by_role('button', name='Проверить копию').click()

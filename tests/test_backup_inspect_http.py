@@ -9,7 +9,7 @@ import unittest
 class BackupInspectionHttpTests(unittest.TestCase):
     def test_upload_security_and_no_restore(self):
         code = r'''
-import http.client, json, os, threading
+import hashlib, http.client, json, os, threading
 from http.server import ThreadingHTTPServer
 from legacy import app
 from storage.backup_download import snapshot
@@ -42,7 +42,12 @@ try:
     status, data = req('POST', b'x'*100, headers)
     assert status == 400 and json.loads(data)['error']
     status, data = req('POST', image, headers)
-    assert status == 200 and json.loads(data) == {'ok':1, 'items':1, 'progress':0}
+    assert status == 200 and json.loads(data) == {'ok':1, 'items':1, 'progress':0, 'sha256':hashlib.sha256(image).hexdigest()}
+    # A changed but still valid SQLite image has a different fingerprint.
+    other = snapshot(app.db, app.lock)
+    status, data = req('POST', other, headers)
+    assert status == 200 and json.loads(data)['sha256'] == hashlib.sha256(other).hexdigest()
+    assert hashlib.sha256(other).digest() != hashlib.sha256(image).digest()
     assert app.sql('select title from items where id=1')[0]['title'] == 'Current'
     assert not app.db.in_transaction
     conn = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=10)

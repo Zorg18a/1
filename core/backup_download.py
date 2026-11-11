@@ -1,4 +1,5 @@
 """Local-only HTTP download handler for an in-memory database snapshot."""
+import hashlib
 import logging
 import re
 import threading
@@ -24,6 +25,7 @@ def download(handler, db, lock):
         handler.send_header('Cache-Control', 'no-store')
         handler.send_header('X-Content-Type-Options', 'nosniff')
         handler.send_header('Content-Length', str(len(data)))
+        handler.send_header('X-Backup-SHA256', hashlib.sha256(data).hexdigest())
         handler.end_headers()
         try:
             handler.wfile.write(data)
@@ -72,7 +74,7 @@ def inspect(handler):
             counts = backup_restore.inspect_bytes(bytes(data))
         except backup_restore.RestoreError as exc:
             return handler.js({'error': str(exc)}, 400)
-        return handler.js({'ok': 1, **counts})
+        return handler.js({'ok': 1, **counts, 'sha256': hashlib.sha256(data).hexdigest()})
     finally:
         _busy.release()
 
