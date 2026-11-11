@@ -303,11 +303,11 @@ $('find').onclick=async()=>{if(!/https?:\/\//.test($('urls').value)){toast('Сн
  const t=(await api('/api/discover',opts())).t;let from=0;const iv=setInterval(async()=>{const p=await api(`/api/preview?t=${t}&from=${from}`);from+=p.pages.length;
   p.pages.forEach(x=>{const i=P.push(x)-1;$('plist').insertAdjacentHTML('beforeend',`<label style="padding-left:${10+x.depth*16}px"><input type="checkbox" id="pg${i}" ${i<+$('maxp').value?'checked':''}> ${esc(x.title)} <span>${esc(x.url)}</span></label>`);$('pg'+i).onchange=cnt});cnt();if(p.finished)clearInterval(iv)},800)};
 /* --- загрузки --- */
-let J=[],lastAct=0;const isA=j=>/^(качается|в очереди|запл)/.test(j.status);
-async function poll(){J=await api('/api/jobs');window.dispatchEvent(new CustomEvent('mediahub:jobs',{detail:J}));const act=J.filter(isA),sp=J.reduce((a,x)=>a+(x.speed||0),0);
- $('nb').textContent=act.length;$('nb').classList.toggle('hide',!act.length);
- if(lastAct>act.length){if(cur=='library')lib();disk()}lastAct=act.length;
- if(cur=='downloads')drawJobs();drawBar();pollExt()}
+let J=[],JA=0,JQ=0,JD=0;const isA=j=>/^(качается|в очереди|запл)/.test(j.status);
+async function poll(){const n=++JQ,x=await api('/api/jobs');if(n<JD||!Array.isArray(x))return;JD=n;J=x;dispatchEvent(new CustomEvent('mediahub:jobs',{detail:J}));const a=J.filter(isA);
+ $('nb').textContent=a.length;$('nb').classList.toggle('hide',!a.length);
+ if(JA>a.length){if(cur=='library')lib();disk()}JA=a.length;
+ cur=='downloads'&&drawJobs();drawBar();pollExt()}
 function drawBar(){const act=J.filter(isA),run=act.filter(j=>j.status.startsWith('качается')),b=$('bar');
  if(!act.length||cur=='downloads'||!run.length&&act.every(j=>j.status.startsWith('запл'))){b.classList.add('hide');return}
  const j=run[0]||act[0],sp=J.reduce((a,x)=>a+(x.speed||0),0),pc=Math.round(act.reduce((a,x)=>a+x.pct,0)/act.length);

@@ -44,6 +44,20 @@ def run(root):
                 expect(summary).to_contain_text('фоновые вкладки')
                 page.unroute('**/api/jobs')
                 expect(summary).not_to_contain_text('могло устареть', timeout=10000)
+                race = page.evaluate('''async () => {
+                  const original = window.fetch, waiting = [];
+                  const fake = status => new Response(JSON.stringify([{ id: 999, title: 'Race', kind: 'video',
+                    status, pct: 0, speed: 0, eta: 0 }]), {headers: {'Content-Type': 'application/json'}});
+                  window.fetch = (url, opts) => url === '/api/jobs' ? new Promise(resolve => waiting.push(resolve)) : original(url, opts);
+                  try {
+                    const old = poll(), newer = poll();
+                    waiting[1](fake('готово')); await newer;
+                    const fresh = document.querySelector('.queue-summary').textContent;
+                    waiting[0](fake('в очереди')); await old;
+                    return [fresh, document.querySelector('.queue-summary').textContent];
+                  } finally { window.fetch = original; }
+                }''')
+                assert 'готово/сохранено — 1' in race[0] and race[0] == race[1]
                 assert not actions and len(app.jobs) == 4 and not any(j['cancel'] for j in app.jobs.values())
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
                 print('Edge: partial/error summary, stale response and recovery passed')
