@@ -3,11 +3,13 @@ import os
 from pathlib import Path
 import tempfile
 import threading
+import traceback
 from http.server import ThreadingHTTPServer
 
 
 def run(root):
     from playwright.sync_api import expect, sync_playwright
+    from scripts.browser_diagnostics import BrowserDiagnostics
     os.environ['MEDIAHUB_DATA_DIR'] = str(root)
     from legacy import app
     downloads = root / 'downloads'; downloads.mkdir()
@@ -17,8 +19,10 @@ def run(root):
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(channel='msedge', headless=True)
+            diagnostics = None
             try:
                 page = browser.new_page(viewport={'width': 320, 'height': 800})
+                diagnostics = BrowserDiagnostics(page)
                 page.goto(f'http://127.0.0.1:{server.server_port}/', wait_until='domcontentloaded')
                 page.wait_for_function("document.querySelector('#disk').textContent.includes('Свободно')")
                 before_dialog = sorted(path.name for path in downloads.iterdir())
@@ -67,6 +71,12 @@ def run(root):
                 page.unroute('**/api/preflight')
                 button.click(); expect(panel.get_by_role('status')).to_contain_text('Проверка завершена')
                 print('Edge: read-only preflight, failure, retry and 320px passed')
+            except Exception:
+                text = traceback.format_exc() + '\nBrowser diagnostics:\n' + (diagnostics.report() if diagnostics else '(page not created)')
+                if os.environ.get('GITHUB_ACTIONS'):
+                    text = text[-6000:].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                    print(f'::error title=Preflight Edge smoke failed::{text}', flush=True)
+                raise
             finally:
                 browser.close()
     finally:
