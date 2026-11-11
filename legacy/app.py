@@ -5,7 +5,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from storage.database import open_database, execute
 from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search, game_scan
-from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress
+from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress, backup_download
 from core.classify import classify
 from core.game_sources import quick_game_request
 from core.game_tags import save_tags_request
@@ -297,7 +297,6 @@ def discover(tok, d):  # быстрый обход для визуального
         if not level or len(p['pages']) >= 500: break
     p['finished'] = True
 
-# ---------- манга Senkuro: приём глав от закладки в браузере, загрузка страниц, читалка ----------
 MH = ('shiro.senkuro.net', 'mirai.senkuro.net'); mlock = threading.Lock()
 def sniff(b): return cover_cache.image_extension(b)
 def orig(u):  # ссылка shiro содержит адрес оригинала на mirai
@@ -939,7 +938,7 @@ class H(BaseHTTPRequestHandler):
     def get(self):
         u = urlparse(self.path); p = unquote(u.path); qs = {k: v[0] for k, v in parse_qs(u.query).items()}
         if p.startswith(('/sub/', '/api/subtitles/', '/api/player-preview/')): return player_preview.get(self, p, sql) if p.startswith('/api/player-preview/') else media_subtitles.get(self, p, sql)
-        if p == '/' or p in ('/ui/app.js', '/ui/inbox-submit.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/cancel-all.js', '/ui/delete-dialog.js', '/ui/game-library.js', '/ui/game-scan-settings.js', '/ui/library-view.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-images.js', '/ui/reader-progress.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js','/ui/player-keys.js','/ui/player-subtitles.js','/ui/player-progress.js','/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
+        if p == '/' or p in ('/ui/app.js','/ui/backup.js','/ui/inbox-submit.js', '/ui/preferences.js', '/ui/notifications.js', '/ui/hotkeys.js', '/ui/job-events.js', '/ui/cancel-all.js', '/ui/delete-dialog.js', '/ui/game-library.js', '/ui/game-scan-settings.js', '/ui/library-view.js', '/ui/game-tags.js', '/ui/game-update-preview.js', '/ui/save-inventory.js', '/ui/accessibility.css', '/ui/reader.js', '/ui/reader-images.js', '/ui/reader-progress.js', '/ui/reader-modes.js', '/ui/reader.css', '/ui/player.js','/ui/player-keys.js','/ui/player-subtitles.js','/ui/player-progress.js','/ui/player.css'): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
         if p == '/api/jobs':
             now = time.time(); keys = ('id', 'url', 'kind', 'status', 'pct', 'title', 'eta', 'daily', 'start_at')
             return self.js([dict({k: j.get(k) for k in keys}, speed=(j.get('speed') or 0) if now - j.get('_ts', now) < 8 else 0) for j in jobs.values()])
@@ -991,6 +990,7 @@ class H(BaseHTTPRequestHandler):
     def post(self):
         if self.path == '/ingest': return self.ingest()
         if self.path.startswith('/ext/'): return self.ext_post()
+        if self.path == '/api/backup': return backup_download.download(self, db, lock)
         d = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or b'{}'); p = self.path
         if p == '/api/add':
             urls = list(dict.fromkeys(x.strip() for x in d['urls'].splitlines() if x.strip().startswith('http')))

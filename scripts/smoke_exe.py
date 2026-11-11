@@ -48,6 +48,7 @@ def check(process):
     assert get(8765, '/', 'example.invalid')[0] == 403
     assert get(8765, '/m/1')[0] == 200
     assert get(8765, '/ui/app.js')[0] == 200
+    assert get(8765, '/ui/backup.js')[0] == 200
     assert get(8765, '/ui/game-library.js')[0] == 200
     assert get(8765, '/ui/game-tags.js')[0] == 200
     assert get(8765, '/ui/game-update-preview.js')[0] == 200

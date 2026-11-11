@@ -11,6 +11,7 @@ import { setupLibraryView } from './library-view.js';
 import { setupGameTags } from './game-tags.js';
 import { setupUpdatePreview } from './game-update-preview.js';
 import { setupSaveInventory } from './save-inventory.js';
+import { setupBackup } from './backup.js';
 
 const preferences = setupPreferences();
 setupNotifications();
@@ -24,3 +25,4 @@ setupSaveInventory();
 setupGameLibrary();
 setupGameScanSettings();
 setupLibraryView();
+setupBackup();
