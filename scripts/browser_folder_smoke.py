@@ -6,6 +6,8 @@ import threading
 import traceback
 from http.server import ThreadingHTTPServer
 
+from scripts.browser_diagnostics import BrowserDiagnostics
+
 
 def run(root):
     from playwright.sync_api import expect, sync_playwright
@@ -31,10 +33,19 @@ def run(root):
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(channel='msedge', headless=True)
             try:
-                page = browser.new_page(viewport={'width': 1100, 'height': 800})
-                page.goto(f'http://127.0.0.1:{server.server_port}/#settings', wait_until='domcontentloaded')
-                layout = page.locator('#s_games_layout')
-                expect(layout).to_be_enabled()
+                # Fresh contexts exercise cold module loads instead of relying on a cached page.
+                for attempt in range(3):
+                    page = browser.new_page(viewport={'width': 1100, 'height': 800})
+                    diagnostics = BrowserDiagnostics(page)
+                    try:
+                        page.goto(f'http://127.0.0.1:{server.server_port}/#settings', wait_until='domcontentloaded')
+                        layout = page.locator('#s_games_layout')
+                        expect(layout).to_be_enabled()
+                        expect(page.get_by_role('heading', name='Резервная копия базы')).to_be_visible()
+                    except Exception as error:
+                        raise AssertionError(f'Cold startup {attempt + 1}: {error}\nBrowser diagnostics:\n{diagnostics.report()}') from error
+                    if attempt < 2:
+                        page.close()
                 layout.select_option('nested')
                 expect(page.locator('#s_games_layout').locator('xpath=ancestor::div[contains(@class,"sr")]')).to_contain_text('пересканировать сейчас')
                 assert app.cfg['games_layout'] == 'nested'

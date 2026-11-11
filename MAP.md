@@ -34,6 +34,7 @@
 - `core/reader_progress.py` — валидация данных будущей timestamped записи прогресса манги.
 - `core/legacy_reader_progress.py`, `storage/legacy_reader_progress.py`, `storage/reader_manifest.py` — проверка ключа манги и запись в действующую схему без миграции и замены всей строки.
 - `tests/test_reader_manifest_identity.py` — соответствие манифеста и записи, конфликт ключей в старой схеме.
+- `scripts/browser_diagnostics.py`, `tests/test_browser_diagnostics.py` — диагностика ошибок браузера в изолированных smoke-тестах.
 - `storage/reader_revision.py`, `tests/test_reader_revision.py`, `tests/test_reader_revision_migration.py` — неподключённый эксперимент ревизий читалки, проверка схемы, backup-first и compare-and-write на временных БД.
 - `ui/reader-progress.js` — сериализация и ручной повтор записи позиции в одной вкладке.
 - `tests/test_legacy_reader_progress.py`, `tests/test_reader_progress.mjs` — временная БД, ошибки, очередь записи и неопределённый ответ.
