@@ -1,7 +1,7 @@
 import { readPreferences } from './preferences.js';
 import { setupReaderModes } from './reader-modes.js';
 import { setupReaderImage } from './reader-images.js';
-import { createProgressSaver, sendProgress } from './reader-progress.js';
+import { createProgressSaver, sendProgress, setupProgressConflict } from './reader-progress.js';
 
 const $ = id => document.getElementById(id);
 const id = location.pathname.split('/')[2];
@@ -13,7 +13,9 @@ const view = $('v');
 let manga, current = 0, timer, requestNumber = 0, snapshot;
 const announce = text => { $('reader-announcement').textContent = text; };
 const warnBeforeLeave = event => { event.preventDefault(); event.returnValue = true; };
-const progress = createProgressSaver({ send: async position => {
+const conflict = setupProgressConflict({ doc: document, itemId: id, getSlug: () => manga?.progress_slug,
+  getChapters: () => manga?.chapters });
+const progress = createProgressSaver({ onPending: position => conflict.update(position), send: async position => {
   snapshot = await sendProgress({ ...position, snapshot });
 }, onDirty: dirty => {
   window[dirty ? 'addEventListener' : 'removeEventListener']('beforeunload', warnBeforeLeave);
@@ -25,7 +27,8 @@ const progress = createProgressSaver({ send: async position => {
   } else if (state === 'conflict') {
     if (document.activeElement === retry) view.focus({ preventScroll: true });
     retry.hidden = true;
-    message.textContent = 'Запись или позиция манги изменилась либо ключ позиции конфликтует. Позиция не сохранена; обновите читалку и проверьте данные.';
+    message.textContent = 'Запись или позиция манги изменилась либо ключ позиции конфликтует. Последнее сохранение отклонено; подробности ниже.';
+    conflict.show();
   } else if (state === 'saved') {
     const recovering = !retry.hidden;
     if (document.activeElement === retry) view.focus({ preventScroll: true });

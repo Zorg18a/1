@@ -38,7 +38,7 @@ class Element {
 function fixture() {
   const names = ['v', 'reader-header', 'reader-zoom', 'reader-storage-warning', 'reader-help',
     'reader-less', 'reader-more', 'reader-help-open', 'reader-help-close', 'reader-announcement',
-    'reader-error', 'reader-progress-status', 'reader-progress-retry', 't', 'c', 'p', 'n', 's'];
+    'reader-error', 'reader-progress-status', 'reader-progress-retry', 'reader-conflict', 'reader-conflict-pending', 'reader-conflict-check', 'reader-conflict-saved', 't', 'c', 'p', 'n', 's'];
   const elements = Object.fromEntries(names.map(name => [name, new Element()]));
   const radios = ['width', 'height', 'orig'].map(value => Object.assign(new Element('input'), { value }));
   const doc = { documentElement: new Element('html'), getElementById: id => elements[id],

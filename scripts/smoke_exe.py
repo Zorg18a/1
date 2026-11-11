@@ -47,7 +47,8 @@ def check(process):
         raise RuntimeError('MediaHub did not start on port 8765')
     assert 'Предпросмотр плеера'.encode('utf-8') in html
     assert get(8765, '/', 'example.invalid')[0] == 403
-    assert get(8765, '/m/1')[0] == 200
+    status, reader = get(8765, '/m/1')
+    assert status == 200 and b'reader-conflict-check' in reader
     assert get(8765, '/ui/app.js')[0] == 200
     assert get(8765, '/ui/backup.js')[0] == 200
     assert get(8765, '/ui/game-library.js')[0] == 200
@@ -56,6 +57,8 @@ def check(process):
     assert get(8765, '/ui/save-inventory.js')[0] == 200
     assert get(8765, '/ui/accessibility.css')[0] == 200
     assert get(8765, '/ui/reader.js')[0] == 200
+    status, reader_progress = get(8765, '/ui/reader-progress.js')
+    assert status == 200 and b'setupProgressConflict' in reader_progress
     assert get(8765, '/ui/reader-modes.js')[0] == 200
     assert get(8765, '/ui/reader.css')[0] == 200
     assert get(8765, '/p/1')[0] == 200

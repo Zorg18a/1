@@ -19,6 +19,9 @@ header select { max-width:100% }
 .reader-image-error p { margin:0 0 8px }
 .reader-image-error button { max-width:100%; white-space:normal }
 .reader-status { padding:4px 16px; color:var(--text) }
+.reader-conflict { overflow-wrap:anywhere; border:1px solid var(--line); margin:8px 16px; border-radius:8px; padding:12px }
+.reader-conflict h2 { font-size:1.1rem; margin:0 0 8px }
+.reader-conflict button { max-width:100%; white-space:normal }
 .reader-sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0 }
 dialog { max-width:min(90vw, 38rem); background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px }
 dialog::backdrop { background:rgba(0,0,0,.7) }

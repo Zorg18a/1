@@ -36,8 +36,8 @@
 - `tests/test_reader_manifest_identity.py`, `tests/test_reader_snapshot.py` — идентичность, конкурентное сравнение позиции и границы его защиты.
 - `scripts/browser_diagnostics.py`, `tests/test_browser_diagnostics.py` — диагностика ошибок браузера в изолированных smoke-тестах.
 - `storage/reader_revision.py`, `tests/test_reader_revision.py`, `tests/test_reader_revision_migration.py` — неподключённый эксперимент ревизий читалки, проверка схемы, backup-first и compare-and-write на временных БД.
-- `ui/reader-progress.js` — сериализация и ручной повтор записи позиции в одной вкладке.
-- `tests/test_legacy_reader_progress.py`, `tests/test_reader_progress.mjs` — временная БД, ошибки, очередь записи и неопределённый ответ.
+- `ui/reader-progress.js` — очередь записи, ручной повтор и сравнение позиций при конфликте без перезаписи.
+- `tests/test_legacy_reader_progress.py`, `tests/test_reader_progress.mjs`, `tests/test_reader_conflict.mjs` — временная БД, ошибки, очередь и интерфейс конфликтов.
 - `ui/reader-images.js` — сообщения об ошибках загрузки страниц и ручной повтор.
 - `scripts/browser_reader_smoke.py` — Edge-проверка читалки и повтора на временной манге.
 - `docs/2026-11-10-mediahub-player-reader-design.md` — приложенная спецификация на проверке.
