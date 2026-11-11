@@ -43,7 +43,10 @@ def run(root):
                         expect(layout).to_be_enabled()
                         expect(page.get_by_role('heading', name='Резервная копия базы')).to_be_visible()
                     except Exception as error:
-                        raise AssertionError(f'Cold startup {attempt + 1}: {error}\nBrowser diagnostics:\n{diagnostics.report()}') from error
+                        # Playwright's full accessibility snapshot can hide diagnostics in CI annotations.
+                        detail = str(error).split('Aria snapshot:')[0][:1800]
+                        report = diagnostics.report()[:3000]
+                        raise AssertionError(f'Cold startup {attempt + 1}: {detail}\nBrowser diagnostics:\n{report}') from None
                     if attempt < 2:
                         page.close()
                 layout.select_option('nested')

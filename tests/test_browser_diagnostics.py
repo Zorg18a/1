@@ -22,11 +22,12 @@ class BrowserDiagnosticsTests(unittest.TestCase):
         page.emit('requestfailed', SimpleNamespace(url='http://127.0.0.1/ui/app.js?t=secret', failure='net::ERR_FAILED'))
         page.emit('response', SimpleNamespace(url='http://127.0.0.1/ui/backup.js?token=secret', status=500))
         page.emit('response', SimpleNamespace(url='http://127.0.0.1/ok', status=200))
+        page.emit('response', SimpleNamespace(url='http://127.0.0.1/ui/app.js?secret=yes', status=200))
         page.emit('pageerror', ValueError('initialization failed'))
         page.emit('console', SimpleNamespace(type='error', text='module failure'))
         page.emit('console', SimpleNamespace(type='log', text='not an error'))
         report = diagnostics.report()
-        for text in ('/ui/app.js: net::ERR_FAILED', '/ui/backup.js: HTTP 500', 'initialization failed', 'module failure'):
+        for text in ('/ui/app.js: net::ERR_FAILED', '/ui/backup.js: HTTP 500', 'initialization failed', 'module failure', '/ui/app.js: 200'):
             self.assertIn(text, report)
         for text in ('secret', '/ok', 'not an error'):
             self.assertNotIn(text, report)

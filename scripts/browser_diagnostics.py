@@ -5,6 +5,7 @@ from urllib.parse import urlsplit
 class BrowserDiagnostics:
     def __init__(self, page):
         self.events = []
+        self.startup = {}
         page.on('pageerror', lambda error: self._record('pageerror', str(error)))
         page.on('requestfailed', lambda request: self._record(
             'requestfailed', f'{self._path(request.url)}: {request.failure}'))
@@ -18,12 +19,17 @@ class BrowserDiagnostics:
         return urlsplit(url).path
 
     def _response(self, response):
+        path = self._path(response.url)
+        if path in ('/ui/app.js', '/ui/game-scan-settings.js', '/api/settings'):
+            self.startup[path] = response.status
         if response.status >= 400:
-            self._record('response', f'{self._path(response.url)}: HTTP {response.status}')
+            self._record('response', f'{path}: HTTP {response.status}')
 
     def _record(self, kind, message):
         if len(self.events) < 30:
             self.events.append(f'{kind}: {message[:500]}')
 
     def report(self):
-        return '\n'.join(self.events) if self.events else '(no captured browser errors)'
+        errors = '\n'.join(self.events) if self.events else '(no captured browser errors)'
+        startup = ', '.join(f'{path}: {status}' for path, status in sorted(self.startup.items())) or '(no tracked responses)'
+        return f'{errors}\nTracked startup responses: {startup}'
