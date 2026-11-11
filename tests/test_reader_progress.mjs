@@ -75,3 +75,15 @@ test('failure and retry keep the warning until the newest position is confirmed'
   assert.deepEqual(changes, [true, false]);
   assert.deepEqual(sends.map(send => send.value.page), [1, 2]);
 });
+
+test('identity conflict stops retries and keeps unsaved warning', async () => {
+  const calls = [], statuses = [], dirty = [];
+  const saver = createProgressSaver({ onDirty: value => dirty.push(value), status: s => statuses.push(s),
+    send: value => { calls.push(value); return Promise.reject(Object.assign(Error('changed'), { code: 'identity-conflict' })); } });
+  saver.submit({ page: 1 }); await flush();
+  assert.equal(statuses.at(-1), 'conflict');
+  saver.submit({ page: 2 }); saver.retry(); await flush();
+  assert.equal(calls.length, 1); assert.deepEqual(dirty, [true]);
+  assert.equal(statuses.at(-1), 'conflict');
+  await assert.rejects(sendProgress({}, async () => ({ status: 409, ok: false })), error => error.code === 'identity-conflict');
+});

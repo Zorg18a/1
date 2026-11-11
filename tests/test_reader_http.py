@@ -40,6 +40,7 @@ try:
     status, payload = request('GET', '/api/manga/1')
     data = json.loads(payload)
     assert status == 200 and data['chapters'][0]['files'] == ['001.png'] and data['progress'] is None
+    assert data['progress_save_allowed'] is True and data['progress_slug'] == 'example'
     assert request('GET', '/mi/1/12/001.png') == (200, b'PNG test page')
     assert request('GET', '/mi/1/12/001.png?retry=1-1') == (200, b'PNG test page')
     body = json.dumps({'id':1, 'cid':'12', 'page':0})
@@ -57,6 +58,16 @@ try:
         assert status == 400 and json.loads(payload)['error'], (status, data, payload)
     status, payload = request('GET', '/api/manga/1')
     assert status == 200 and json.loads(payload)['progress'] == {'cid':'12', 'page':0}
+    guarded = json.dumps({'id': 1, 'cid': '12', 'page': 1, 'slug': 'example'})
+    assert request('POST', '/api/progress', guarded, {'X-MH':'1'})[0] == 200
+    app.sql("update items set url='manga:other' where id=1")
+    status, payload = request('POST', '/api/progress', guarded, {'X-MH':'1'})
+    assert status == 409 and json.loads(payload)['error']
+    status, payload = request('GET', '/api/manga/1')
+    mismatch = json.loads(payload)
+    assert status == 200 and mismatch['progress_save_allowed'] is False and mismatch['progress_slug'] is None
+    assert mismatch['progress'] == {'cid':'12', 'page':1}
+    assert not app.sql("select * from progress where slug='other'")
     assert request('GET', '/api/manga/1', headers={'Host':'evil.example'})[0] == 403
 finally:
     server.shutdown(); server.server_close(); thread.join(); app.db.close()

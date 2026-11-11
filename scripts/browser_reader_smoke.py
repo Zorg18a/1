@@ -74,7 +74,33 @@ def run(root):
                 page.reload()
                 expect(page.locator('#c')).to_have_value('1')
                 assert app.sql("select cid,page from progress where slug='reader-test'")[0]['cid'] == '13'
-                print('Edge: reader image and progress retry, chapter save and reload passed')
+                page.close()
+                app.sql("update items set url='manga:other' where id=3")
+                page = browser.new_page(viewport={'width': 320, 'height': 800})
+                writes = []
+                page.on('request', lambda request: writes.append(request.url) if request.url.endswith('/api/progress') else None)
+                page.goto(f'http://127.0.0.1:{server.server_port}/m/3', wait_until='domcontentloaded')
+                expect(page.locator('#reader-error')).to_contain_text('Позиция не сохраняется')
+                expect(page.locator('#v img')).to_be_visible()
+                page.locator('#p').click()
+                page.evaluate("window.dispatchEvent(new Event('scroll'))")
+                page.wait_for_timeout(900)
+                assert writes == []
+                assert app.sql("select cid from progress where slug='reader-test'")[0]['cid'] == '13'
+                assert not app.sql("select * from progress where slug='other'")
+                page.close()
+                app.sql("update items set url='manga:reader-test' where id=3")
+                page = browser.new_page(viewport={'width': 320, 'height': 800})
+                page.goto(f'http://127.0.0.1:{server.server_port}/m/3', wait_until='domcontentloaded')
+                expect(page.locator('#v img')).to_be_visible()
+                page.wait_for_timeout(900)
+                app.sql("update items set url='manga:other' where id=3")
+                page.locator('#p').click()
+                expect(page.locator('#reader-progress-status')).to_contain_text('Запись манги изменилась')
+                expect(page.get_by_role('button', name='Повторить сохранение позиции')).to_be_hidden()
+                assert app.sql("select cid from progress where slug='reader-test'")[0]['cid'] == '13'
+                assert not app.sql("select * from progress where slug='other'")
+                print('Edge: reader retry, chapter save and identity mismatch protection passed')
             finally:
                 browser.close()
     finally:

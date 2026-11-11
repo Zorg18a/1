@@ -4,7 +4,7 @@ from urllib.parse import urlparse, urljoin, unquote, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from storage.database import open_database, execute
-from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search, game_scan
+from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search, game_scan, reader_manifest
 from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress, backup_download
 from core.classify import classify
 from core.game_sources import quick_game_request
@@ -534,15 +534,6 @@ def manga_extra(r):
     try: m = json.loads((Path(r['root']) / 'manifest.json').read_text('utf-8')); return f"{len(m['chapters'])} из {len(m.get('listed', [])) or '?'} гл."
     except Exception: return ''
 
-def manga_info(i):
-    r = sql('select * from items where id=? and kind=?', (i, 'manga'))
-    if not r: return {'error': 'not found'}
-    man = json.loads((Path(r[0]['root']) / 'manifest.json').read_text('utf-8')); pr = sql('select cid,page from progress where slug=?', (man['slug'],))
-    allc = {c['cid']: {'id': c['cid'], 'label': c['label'], 'files': [], 'expected': 0, 'done': False} for c in man.get('listed', [])}
-    for k, v in man['chapters'].items(): allc[k] = dict(v, id=k)
-    chs = sorted(allc.values(), key=lambda c: [float(x) for x in re.findall(r'\d+(?:\.\d+)?', c['label'])] or [0])
-    return {'title': man['title'], 'chapters': chs, 'total': len(man.get('listed', [])), 'have': len(man['chapters']), 'progress': dict(pr[0]) if pr else None}
-
 def preview(tok, d):
     import yt_dlp
     p = prev[tok]; kind = d['kind']
@@ -964,7 +955,7 @@ class H(BaseHTTPRequestHandler):
         mm = re.fullmatch(r'/([mp])/\d+', p)
         if mm: return self.file(ASSETS / 'ui' / ('reader.html' if mm.group(1) == 'm' else 'player.html'))
         mm = re.match(r'/api/manga/(\d+)$', p)
-        if mm: return self.js(manga_info(int(mm.group(1))))
+        if mm: return self.js(reader_manifest.manga_info(int(mm.group(1)), sql))
         mm = re.match(r'/mi/(\d+)/(\d+)/(\d{3}\.\w+)$', p)
         if mm:
             r = sql('select * from items where id=? and kind=?', (mm.group(1), 'manga'))

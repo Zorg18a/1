@@ -28,10 +28,15 @@ def progress_request(data, db, lock):
             cid = str(cid)
         if not isinstance(cid, str) or not cid or len(cid) > 1024:
             raise ValueError('Некорректный идентификатор главы')
+        expected = data.get('slug') if 'slug' in data else None
+        if 'slug' in data and (not isinstance(expected, str) or not expected or len(expected) > 1024 or '\0' in expected):
+            raise ValueError('Некорректный идентификатор манги')
     except ValueError as exc:
         return {'error': str(exc)}, 400
     try:
-        saved = legacy_reader_progress.save(db, lock, item_id, cid, page)
+        saved = legacy_reader_progress.save(db, lock, item_id, cid, page, expected)
+    except legacy_reader_progress.IdentityConflict:
+        return {'error': 'Запись манги изменилась или ключ позиции конфликтует. Обновите читалку и проверьте данные.'}, 409
     except (sqlite3.Error, RuntimeError):
         logging.exception('Не удалось сохранить прогресс читалки')
         return {'error': 'Не удалось сохранить позицию. Проверьте базу и подключение.'}, 500

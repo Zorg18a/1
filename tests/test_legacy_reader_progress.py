@@ -48,6 +48,24 @@ class LegacyReaderProgressTests(unittest.TestCase):
         self.assertEqual(tuple(self.db.execute("select cid,page,updated,custom from progress where slug='slug'").fetchone()),
                          ('new', 8, None, 'keep'))
 
+    def test_expected_slug_rejects_changed_identity_without_modifying_either_row(self):
+        self.db.execute("insert into progress values('other','previous',9)")
+        self.db.execute("update items set url='manga:other' where id=1"); self.db.commit()
+        data, status = self.request(id=1, cid='new', page=6, slug='slug')
+        self.assertEqual(status, 409); self.assertIn('error', data)
+        self.assertFalse(self.db.in_transaction)
+        rows = {r['slug']: (r['cid'], r['page']) for r in self.db.execute('select * from progress')}
+        self.assertEqual(rows, {'slug': ('old', 4), 'other': ('previous', 9)})
+        self.assertEqual(self.request(id=1, cid='new', page=6, slug='other')[1], 200)
+        self.assertEqual(self.db.execute("select page from progress where slug='other'").fetchone()[0], 6)
+
+    def test_expected_slug_validation_and_old_client_compatibility(self):
+        for slug in (None, '', True, 'x\0y', 'x' * 1025):
+            self.assertEqual(self.request(id=1, cid='1', page=0, slug=slug)[1], 400)
+        self.assertEqual(self.request(id=1, cid='legacy', page=1)[1], 200)
+        self.assertEqual(self.db.execute("select cid from progress where slug='slug'").fetchone()[0], 'legacy')
+        self.assertEqual(self.request(id=999, cid='1', page=0, slug='slug')[1], 404)
+
     def test_write_failure_is_reported_and_rolled_back(self):
         self.db.execute("create trigger deny_progress before update on progress begin select raise(abort, 'denied'); end")
         self.db.commit()
