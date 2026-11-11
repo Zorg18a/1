@@ -18,8 +18,8 @@
 - `tests/test_name_search.py`, `tests/test_gamesweep_search.mjs` — поиск, группировка и сопоставление названий на временных данных.
 - `scripts/browser_search_smoke.py` — поиск в библиотеках, версиях и вкладках в Edge.
 - `core/ui_assets.py` — точный список файлов UI, разрешённых локальным сервером.
-- `storage/download_preflight.py`, `core/download_preflight.py`, `ui/download-preflight.js` — проверка сохранённой папки, места, инструментов и связи с расширением без записи.
-- `tests/test_download_preflight.py`, `tests/test_download_preflight_http.py`, `tests/test_download_preflight.mjs`, `scripts/browser_preflight_smoke.py` — изолированные проверки preflight, HTTP и Edge.
+- `storage/download_preflight.py`, `core/download_preflight.py`, `ui/download-preflight.js`, `ui/download-preflight-dialog.js` — проверка сохранённой папки, места, инструментов и связи с расширением без записи из настроек и окна добавления.
+- `tests/test_download_preflight.py`, `tests/test_download_preflight_http.py`, `tests/test_download_preflight.mjs`, `tests/test_download_preflight_dialog.mjs`, `scripts/browser_preflight_smoke.py` — изолированные проверки preflight, HTTP и Edge.
 - `ui/library-search.js`, `tests/test_library_search.mjs` — счётчик и сброс поиска/типа основной библиотеки, индикация ошибок и проверка порядка запросов.
 - `ui/game-search.js`, `tests/test_game_search.mjs` — счётчик, сброс игровых фильтров, повтор загрузки и порядок запросов.
 - `storage/recent_items.py`, `core/recent_items.py`, `ui/recent.js` — проверка текущей записи и локальная история открытий плеера/читалки без миграции.

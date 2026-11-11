@@ -24,6 +24,22 @@ export function describePreflight(data) {
     data.extension_online ? 'Расширение недавно выходило на связь.' : 'Недавней связи с расширением не обнаружено.'];
 }
 
+export async function requestPreflight({ fetcher, win, controller }) {
+  let timedOut = false;
+  const timer = win.setTimeout(() => { timedOut = true; controller.abort(); }, 15000);
+  try {
+    const response = await fetcher('/api/preflight', { method: 'POST', headers: { 'X-MH': '1' }, signal: controller.signal });
+    if (timedOut) throw new Error('timeout');
+    const data = await response.json();
+    if (timedOut) throw new Error('timeout');
+    if (!response.ok) throw new Error(typeof data?.error === 'string' && data.error.length <= 200 ? data.error : 'Сервер не выполнил проверку.');
+    return { data, lines: describePreflight(data) };
+  } catch (error) {
+    if (timedOut) throw new Error('Время ожидания истекло; сервер может продолжать проверку. Попробуйте позже.');
+    throw error;
+  } finally { win.clearTimeout(timer); }
+}
+
 export function setupDownloadPreflight({ doc = document, win = window, fetcher = fetch } = {}) {
   const parent = doc.querySelector('#v-settings .set'), folder = doc.getElementById('s_folder');
   if (!parent || !folder) return;
@@ -42,22 +58,15 @@ export function setupDownloadPreflight({ doc = document, win = window, fetcher =
     if (busy) return;
     busy = true; button.disabled = true; const ticket = ++generation;
     status.textContent = 'Проверяем сохранённые настройки…'; list.replaceChildren();
-    const controller = new AbortController(); let timedOut = false;
-    const timer = win.setTimeout(() => { timedOut = true; controller.abort(); }, 15000);
+    const controller = new AbortController();
     try {
-      const response = await fetcher('/api/preflight', { method: 'POST', headers: { 'X-MH': '1' }, signal: controller.signal });
-      if (timedOut) throw new Error('Время ожидания истекло; сервер может продолжать проверку. Попробуйте позже.');
-      const data = await response.json();
-      if (timedOut) throw new Error('Время ожидания истекло; сервер может продолжать проверку. Попробуйте позже.');
-      if (!response.ok) throw new Error(typeof data?.error === 'string' && data.error.length <= 200 ? data.error : 'Сервер не выполнил проверку.');
-      const lines = describePreflight(data);
+      const { data, lines } = await requestPreflight({ fetcher, win, controller });
       if (ticket !== generation) return;
       if (data.folder !== folder.value.trim()) { changed(); return; }
       for (const line of lines) { const item = doc.createElement('li'); item.textContent = line; list.append(item); }
       status.textContent = 'Проверка завершена. Результат может устареть; он не гарантирует успешную загрузку.';
     } catch (error) {
-      if (ticket === generation) status.textContent = timedOut ? 'Время ожидания истекло; сервер может продолжать проверку. Попробуйте позже.' :
-        `Проверка не выполнена: ${error?.message || 'нет связи с MediaHub'}`;
-    } finally { win.clearTimeout(timer); busy = false; button.disabled = false; }
+      if (ticket === generation) status.textContent = `Проверка не выполнена: ${error?.message || 'нет связи с MediaHub'}`;
+    } finally { busy = false; button.disabled = false; }
   });
 }
