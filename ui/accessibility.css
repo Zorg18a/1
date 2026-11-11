@@ -41,6 +41,7 @@ html[data-contrast="high"] ::placeholder { color:var(--mute); opacity:1 }
 .extension-guide li { margin:6px 0 }
 .extension-guide p, .extension-guide li { overflow-wrap:anywhere }
 .extension-guide select { max-width:100% }
+.queue-summary { overflow-wrap:anywhere; margin:10px 0 }
 @media(max-width:860px) {
   .notify-launch, .shortcuts-launch { justify-content:center; padding:9px 4px }
   .gpanel { left:64px; width:min(410px, calc(100vw - 64px)) }

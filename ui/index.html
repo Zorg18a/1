@@ -314,7 +314,7 @@ function drawBar(){const act=J.filter(isA),run=act.filter(j=>j.status.startsWith
  b.classList.remove('hide');$('bt').textContent=j.title;$('bs').textContent=act.length>1?`и ещё ${act.length-1} в очереди`:(j.eta?'осталось '+ETA(j.eta):'');$('bp').textContent=(sp?B(sp)+'/с':'')+' · '+pc+'%';$('bf').style.width=pc+'%'}
 $('bar').onclick=()=>location.hash='#downloads';
 function drawJobs(){const sp=J.reduce((a,x)=>a+(x.speed||0),0);$('tsp').textContent=sp?B(sp)+'/с':'';
- $('jobs').innerHTML=J.length?[...J].reverse().map(x=>{const a=isA(x),c=x.status.startsWith('ошибка')?'err':x.status.startsWith('готово')||x.status.startsWith('сохранено')?'ok':x.status.startsWith('частично')?'part':'';
+ $('jobs').innerHTML=J.length?[...J].reverse().map(x=>{const a=isA(x),c=/^ошибка/.test(x.status)?'err':/^(сохранено )?частично/.test(x.status)?'part':/^(готово|сохранено)/.test(x.status)?'ok':'';
   return `<div class="job${a?'':' done'}"><div class="ji">${I(IC[x.kind]||IC.video,20)}</div><div style="min-width:0"><div class="jt" title="${esc(x.title)}">${esc(x.title)}</div><div class="js ${c}">${esc(x.status)}${x.speed?' · '+B(x.speed)+'/с':''}${x.eta?' · осталось '+ETA(x.eta):''}${x.daily?' · каждый день':''}</div><div class="bar"><i style="width:${x.pct}%"></i></div></div>${a?`<button class="x" aria-label="Отменить" onclick="api('/api/cancel',{id:${x.id}})">${I('<path d="M6 6l12 12M18 6 6 18"/>',18)}</button>`:'<span></span>'}</div>`}).join(''):`<div class="empty" style="margin-top:8vh"><h2>Загрузок нет</h2><p>Нажмите «Добавить», вставьте ссылку — здесь появятся ход и скорость.</p></div>`}
 $('clr').onclick=async()=>{await api('/api/clear',{});poll()};
 /* --- диск --- */
