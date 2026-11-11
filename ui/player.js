@@ -1,6 +1,7 @@
 import { readPreferences } from './preferences.js';
 import { setupPlayerKeys } from './player-keys.js';
 import { setupSubtitleSelector } from './player-subtitles.js';
+import { setupPlayerProgress } from './player-progress.js';
 
 const $ = id => document.getElementById(id);
 const id = location.pathname.split('/')[2];
@@ -58,6 +59,8 @@ async function load() {
       node.addEventListener('error', () => { $('player-warning').textContent = 'Не удалось загрузить дорожку субтитров. Попробуйте другую или обновите страницу.'; });
       media.append(node); expected++;
     }
+    setupPlayerProgress({ media, storage, itemId, identity: item.local_position_identity,
+      status: $('player-progress-status'), reset: $('player-restart'), win: window });
     media.src = item.src;
     container.append(media);
     if (item.kind === 'audio' && expected && !item.subtitle_warning) $('player-warning').textContent = 'Отображение субтитров для аудио зависит от браузера.';

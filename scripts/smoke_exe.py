@@ -60,6 +60,7 @@ def check(process):
     assert get(8765, '/ui/player.js')[0] == 200
     assert get(8765, '/ui/player-keys.js')[0] == 200
     assert get(8765, '/ui/player-subtitles.js')[0] == 200
+    assert get(8765, '/ui/player-progress.js')[0] == 200
     assert get(8765, '/ui/player.css')[0] == 200
     status, body = get(8765, '/api/library')
     assert status == 200 and json.loads(body) == []

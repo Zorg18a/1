@@ -8,6 +8,7 @@ a, button, select { color:var(--text); background:var(--raise); border:1px solid
 a { text-decoration:none }
 a:focus-visible, button:focus-visible, select:focus-visible, video:focus-visible, audio:focus-visible { outline:3px solid var(--amber); outline-offset:3px }
 #player-subtitle-control { margin-top:12px; display:flex; flex-wrap:wrap; align-items:center; gap:8px }
+#player-restart { margin-bottom:12px }
 #player-subtitles { max-width:100% }
 main { width:min(100%, 1000px); margin:auto; padding:16px }
 .notice { color:var(--text); border-left:3px solid var(--amber); padding-left:12px }

@@ -34,7 +34,7 @@ test('available audio and video expose a separate preview while primary links st
   for (const id of [1, 2]) {
     const card = items.find(value => value.includes(`href="/f/${id}"`));
     assert.match(card, new RegExp(`href="/p/${id}"`));
-    assert.match(card, /Предпросмотр плеера без сохранения позиции/);
+    assert.match(card, /Предпросмотр плеера:/);
     assert.match(card, /target="_blank" rel="noopener"/);
   }
   assert.equal((output.match(/class="btn player-preview"/g) || []).length, 2);

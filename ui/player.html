@@ -10,7 +10,9 @@
 <body>
   <header><a href="/">← Библиотека</a><h1 id="player-title">Плеер</h1><button type="button" id="player-help-open">Справка по клавишам</button></header>
   <main>
-    <p class="notice">Предварительная версия: позиция воспроизведения пока не сохраняется.</p>
+    <p class="notice">Предпросмотр: позиция сохраняется в этом браузере, если его хранилище доступно. В других браузерах и при открытии файла напрямую она недоступна.</p>
+    <p id="player-progress-status" role="status"></p>
+    <button type="button" id="player-restart" disabled>С начала</button>
     <p id="player-warning" role="status"></p>
     <div id="player-container"></div>
     <div id="player-subtitle-control" hidden><label for="player-subtitles">Субтитры</label> <select id="player-subtitles"></select></div>

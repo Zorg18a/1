@@ -153,7 +153,9 @@
 - `tests/test_ui_assets.py` — проверка HTTP-доставки и ограничений статических ресурсов.
 - `ui/index.html` — Главный браузерный интерфейс.
 - `ui/player.html`, `ui/player.css` — предварительная страница плеера и стили.
-- `ui/player.js`, `ui/player-keys.js` — встроенные медиаэлементы и клавиши без сохранения позиции.
+- `ui/player.js`, `ui/player-keys.js` — встроенные медиаэлементы и клавиши предварительного плеера.
+- `ui/player-progress.js`, `storage/media_identity.py` — локальная позиция браузера и приблизительная привязка к файлу без миграции БД.
+- `tests/test_player_progress.mjs`, `tests/test_media_identity.py` — сохранение/восстановление и привязка к временному файлу.
 - `ui/player-subtitles.js` — доступный выбор и локальная настройка дорожек субтитров.
 - `tests/test_player.mjs`, `tests/test_player_http.py` — DOM/клавиши и HTTP предварительного плеера.
 - `tests/test_library_player.mjs` — отрисовка безопасной ссылки предпросмотра в карточках библиотеки.
