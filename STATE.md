@@ -20,7 +20,9 @@
   нужны объединение с общей миграцией, согласование manifest.slug и items.url, безопасная
   обработка конфликтов в UI и проверка реальных Windows-путей. Локально прошли
   197 Python-тестов (7 пропущены), 62 Node-теста, compileall, синтаксис JS,
-  GameSweep selftest 73/73 и `git diff --check`; Windows CI ожидается.
+  GameSweep selftest 73/73 и `git diff --check`. Windows CI
+  [43009237898](https://github.com/Zorg18a/1/actions/runs/43009237898) прошёл,
+  включая временные БД, Edge smoke и сборку EXE; реальные данные не использовались.
 
 ## Эксперимент ревизий читалки — не подключён
 
