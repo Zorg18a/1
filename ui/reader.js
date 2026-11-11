@@ -10,27 +10,33 @@ try { storage = window.localStorage; } catch { storage = null; }
 const display = readPreferences(storage);
 for (const key of ['theme', 'size', 'contrast']) document.documentElement.dataset[key] = display[key];
 const view = $('v');
-let manga, current = 0, timer, requestNumber = 0, snapshot;
+let manga, current = 0, timer, requestNumber = 0, snapshot, resolvingConflict = false;
 const announce = text => { $('reader-announcement').textContent = text; };
 const warnBeforeLeave = event => { event.preventDefault(); event.returnValue = true; };
 const conflict = setupProgressConflict({ doc: document, itemId: id, getSlug: () => manga?.progress_slug,
-  getChapters: () => manga?.chapters });
-const progress = createProgressSaver({ onPending: position => conflict.update(position), send: async position => {
+  getChapters: () => manga?.chapters, confirm: text => window.confirm(text),
+  onResolve: (next, position) => progress.resolveConflict(position, () => { snapshot = next; resolvingConflict = true; }),
+  onStart: () => { view.focus({ preventScroll: true }); $('reader-progress-status').textContent = 'Сохранение выбранной позиции…'; },
+});
+const progress = createProgressSaver({ onChange: () => conflict.invalidate(), onPending: position => conflict.update(position), send: async position => {
   snapshot = await sendProgress({ ...position, snapshot });
 }, onDirty: dirty => {
   window[dirty ? 'addEventListener' : 'removeEventListener']('beforeunload', warnBeforeLeave);
 }, status: state => {
   const retry = $('reader-progress-retry'), message = $('reader-progress-status');
   if (state === 'unknown') {
+    resolvingConflict = false;
     message.textContent = 'Не удалось подтвердить сохранение. Запрос мог выполниться; при повторе старый запрос может завершиться позже.';
     retry.hidden = false;
   } else if (state === 'conflict') {
+    resolvingConflict = false;
     if (document.activeElement === retry) view.focus({ preventScroll: true });
     retry.hidden = true;
     message.textContent = 'Запись или позиция манги изменилась либо ключ позиции конфликтует. Последнее сохранение отклонено; подробности ниже.';
     conflict.show();
   } else if (state === 'saved') {
-    const recovering = !retry.hidden;
+    const recovering = !retry.hidden || resolvingConflict;
+    resolvingConflict = false;
     if (document.activeElement === retry) view.focus({ preventScroll: true });
     retry.hidden = true;
     message.textContent = recovering ? 'Позиция сохранена.' : '';

@@ -13,8 +13,8 @@ a:hover,button:hover{border-color:rgba(170,185,230,.34)}a:focus-visible,button:f
 <p id="reader-storage-warning" class="reader-status" role="status" hidden>Не удалось сохранить настройки читалки в браузере.</p><p id="reader-error" class="reader-status" role="alert"></p><div class="reader-status"><span id="reader-progress-status" role="status"></span> <button id="reader-progress-retry" type="button" hidden>Повторить сохранение позиции</button></div><div id="reader-announcement" class="reader-sr-only" role="status" aria-live="polite"></div>
 <section id="reader-conflict" class="reader-status reader-conflict" aria-labelledby="reader-conflict-title" hidden>
 <h2 id="reader-conflict-title">Конфликт сохранения</h2><p id="reader-conflict-pending"></p>
-<p>Запишите позицию этой вкладки перед обновлением страницы. Проверка не меняет данные; сохранённая позиция может снова измениться. Эта вкладка больше не сохраняет прогресс до перезагрузки.</p>
-<button type="button" id="reader-conflict-check">Проверить сохранённую позицию</button><p id="reader-conflict-saved" role="status" aria-live="polite"></p></section>
+<p>Проверка не меняет данные; сохранённая позиция может снова измениться. После проверки можно подтвердить замену сохранённой позиции позицией этой вкладки, либо записать её и обновить страницу.</p>
+<button type="button" id="reader-conflict-check">Проверить сохранённую позицию</button><p id="reader-conflict-saved" role="status" aria-live="polite"></p><button type="button" id="reader-conflict-apply" disabled>Сохранить позицию этой вкладки</button></section>
 <main id="v" tabindex="0" aria-label="Страницы главы"></main>
 <dialog id="reader-help" aria-labelledby="reader-help-title"><h2 id="reader-help-title">Клавиши читалки</h2><p>← / → или P / N — главы; + / − / 0 — масштаб; W / H / O — вписывание; ? — справка. Односимвольные клавиши отключаются в общих настройках.</p><p>При горизонтальной прокрутке в исходном размере стрелки управляют прокруткой; для смены главы используйте P / N.</p><button id="reader-help-close" type="button">Закрыть</button></dialog>
 <script type="module" src="/ui/reader.js"></script></body></html>
