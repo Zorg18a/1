@@ -2,9 +2,13 @@
 import re
 from urllib.parse import urlsplit
 
+from core import pornolab
+
 
 def game_thread_url(value):
-    """Accept only HTTPS F95zone thread URLs; never pass arbitrary hosts to the bridge."""
+    """Accept supported HTTPS topic URLs; never pass arbitrary hosts to the bridge."""
+    if pornolab.topic_url(value):
+        return pornolab.topic_url(value)
     if not isinstance(value, str) or len(value) > 2000 or any(ord(c) < 32 for c in value):
         return None
     try:
@@ -24,6 +28,6 @@ def quick_game_request(data, enqueue):
     """Validate an extension request and enqueue a game-card job."""
     url = game_thread_url(data.get('url')) if isinstance(data, dict) else None
     if not url:
-        return {'error': 'Нужна ссылка HTTPS на тему игры f95zone.to'}, 400
+        return {'error': 'Нужна ссылка HTTPS на тему игры f95zone.to или pornolab.net'}, 400
     job_id = enqueue(url, 'gamecard', title=url)
     return {'job': job_id, 'status': 'queued'}, 200

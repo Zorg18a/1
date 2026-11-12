@@ -12,7 +12,11 @@ class GameSourceTests(unittest.TestCase):
     def test_allowed_and_rejected_urls(self):
         self.assertEqual(game_thread_url('https://f95zone.to/threads/game.123/page-2?x=1#post'),
                          'https://f95zone.to/threads/game.123/')
-        for url in ('http://f95zone.to/threads/x.1', 'https://f95zone.to.evil.test/threads/1',
+        self.assertEqual(game_thread_url('https://pornolab.net/forum/viewtopic.php?t=3282477&start=20'),
+                         'https://pornolab.net/forum/viewtopic.php?t=3282477')
+        for url in ('https://pornolab.net/forum/viewtopic.php?t=1&t=2',
+                    'https://pornolab.net.evil.test/forum/viewtopic.php?t=1',
+                    'http://f95zone.to/threads/x.1', 'https://f95zone.to.evil.test/threads/1',
                     'https://user@f95zone.to/threads/1', 'https://f95zone.to:444/threads/1',
                     'https://f95zone.to/threads/x%2F1', 'https://127.0.0.1/threads/1',
                     'https://f95zone.to/threads/', 'https://f95zone.to/\nthreads/1', None, 5):
@@ -64,6 +68,9 @@ try:
     assert row['title'] == 'Example Game' and row['g']['latest'] == '1.2'
     assert row['g']['thread'] == 'https://f95zone.to/threads/game.123/'
     assert row['thumb'] == str(cover) and row['cover']
+    status, result = request('POST', endpoint, {'url': 'https://pornolab.net/forum/viewtopic.php?t=123&start=20'}, ext)
+    assert status == 200 and result['status'] == 'queued'
+    assert app.jobs[result['job']]['url'] == 'https://pornolab.net/forum/viewtopic.php?t=123'
 finally:
     server.shutdown()
     server.server_close()

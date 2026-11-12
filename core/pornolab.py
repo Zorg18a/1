@@ -1,7 +1,7 @@
-"""Experimental offline parser for Pornolab topic pages; not wired to the app.
+"""Conservative Pornolab topic parsing from HTML obtained by the user's browser.
 
-Only a complete topic with a title and first post is accepted. Actual game-topic
-markup and artwork availability still require verification against a real page.
+Page layout can vary. Missing metadata remains unknown; access failures must not
+be treated as an empty game. Real network/extension behavior needs user testing.
 """
 from html.parser import HTMLParser
 import re
@@ -114,15 +114,54 @@ def parse_topic(html, url):
         return None
     fields = {}
     labels = {'название игры': 'name', 'название': 'name', 'версия игры': 'version',
-              'версия': 'version', 'жанр': 'genre', 'жанры': 'genre',
-              'разработчик': 'developer', 'год выпуска': 'release', 'описание': 'desc'}
+              'версия': 'version', 'жанр': 'genre', 'жанры': 'genre', 'теги': 'genre',
+              'разработчик': 'developer', 'год выпуска': 'release', 'дата релиза': 'release', 'описание': 'desc'}
     for line in ''.join(page.text).splitlines():
         key, sep, value = line.partition(':')
         key, value = ' '.join(key.lower().split()), ' '.join(value.split())
         if sep and key in labels and value:
             fields.setdefault(labels[key], value[:2000])
+    # Example layout: Game [1.0] (Developer) [status] [year, tags] [languages].
+    match = re.match(r'^(.+?)\s*\[((?:v|ver\.?\s*)?\d[^\]]{0,60})\]\s*(?:\(([^)]{1,200})\))?', title, re.I)
+    name = match.group(1).strip() if match else title
+    version = match.group(2).strip() if match else ''
+    developer = (match.group(3) or '').strip() if match else ''
     genres = [part.strip() for part in re.split(r'[,;/]', fields.get('genre', '')) if part.strip()]
-    return {'name': fields.get('name', title)[:300], 'version': fields.get('version', '')[:150],
-            'developer': fields.get('developer', '')[:300], 'release': fields.get('release', '')[:100],
-            'genres': genres[:60], 'desc': fields.get('desc', ''), 'cover': game_cover.choose(page.images, {}, url),
-            'thread': topic_url(url)}
+    if not genres:
+        groups = re.findall(r'\[([^\]]+)\]', title)
+        tags = next((g for g in groups if re.match(r'^\s*(?:19|20)\d{2}\s*,', g)), '')
+        genres = [p.strip() for p in tags.split(',')[1:] if p.strip()]
+    preferred = [a for a in page.images if 'postImgAligned' in (a.get('class') or '').split()]
+    cover = game_cover.choose(preferred or page.images, {}, url)
+    return {'name': fields.get('name', name)[:300], 'version': fields.get('version', version)[:150],
+            'developer': fields.get('developer', developer)[:300], 'release': fields.get('release', '')[:100],
+            'genres': genres[:60], 'desc': fields.get('desc', ''), 'cover': cover, 'thread': topic_url(url)}
+
+
+def find_card(sql, find_game, key, name, thread):
+    canonical = topic_url(thread)
+    if canonical:
+        rows = sql("select * from items where kind='game' and src=?", (canonical,))
+        if len(rows) > 1:
+            raise ValueError('Для темы найдено несколько карточек; проверьте их вручную')
+        if rows:
+            return rows[0]
+    return find_game(key, name)
+
+
+def safe_metadata(meta, row, info, thread):
+    """Do not merge a Pornolab topic into an unrelated or unlinked existing game."""
+    canonical = topic_url(thread)
+    if not canonical or row is None:
+        return meta
+    old = info.get('meta', {}) if isinstance(info, dict) else {}
+    if not isinstance(old, dict):
+        raise ValueError('Существующая карточка содержит неизвестные метаданные')
+    sources = [s for s in (row['src'], old.get('thread')) if s]
+    if not sources or any(topic_url(s) != canonical for s in sources):
+        raise ValueError('Похожая игра уже существует: проверьте карточку и ссылку вручную')
+    merged = dict(meta)
+    for key in ('version', 'developer', 'release', 'genres', 'desc', 'cover'):
+        if not merged.get(key) and old.get(key):
+            merged[key] = old[key]
+    return merged

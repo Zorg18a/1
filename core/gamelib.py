@@ -4,7 +4,7 @@ import re
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 
-from core import game_cover
+from core import game_cover, pornolab
 
 STATUSES = {'completed': 'Завершена', 'abandoned': 'Заброшена', 'on hold': 'Приостановлена'}
 ENGINES = {"ren'py", 'renpy', 'unity', 'rpgm', 'rpg maker', 'unreal engine', 'html', 'java', 'flash', 'qsp', 'webgl', 'tads', 'adrift', 'rags', 'wolf rpg', 'others'}
@@ -97,6 +97,7 @@ def newer(a, b):
 
 def thread_key(url):
     """Нормальный адрес темы: https://host/threads/<slug>.<id>/ без страниц и якорей; иначе адрес без якоря."""
+    if pornolab.topic_url(url): return pornolab.topic_url(url)
     u = urlparse(url); m = re.match(r'^(/threads/[^/]*?\.?\d+)(/|$)', u.path)
     return f'{u.scheme}://{u.netloc}{m.group(1)}/' if m else url.split('#')[0]
 
@@ -109,6 +110,7 @@ def is_blocked(html):
 
 def parse_thread(html, url=''):
     if is_blocked(html): return {'name': '', 'blocked': True, 'version': '', 'genres': [], 'links': []}
+    if pornolab.topic_url(url): return pornolab.parse_topic(html, url) or {'name': '', 'version': '', 'genres': [], 'links': []}
     p = _P()
     try: p.feed(html or ''); p.close()
     except Exception: pass

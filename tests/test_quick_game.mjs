@@ -17,13 +17,17 @@ const reply = (status, body) => ({ ok: status >= 200 && status < 300, status, js
 
 test('both browser builds use identical one-click logic', () => assert.equal(source, firefox));
 
-test('allow only HTTPS F95 thread pages', () => {
-  for (const url of ['https://f95zone.to/threads/game.123/', 'https://f95zone.to/threads/123/page-2#post'])
+test('allow only HTTPS supported thread pages', () => {
+  for (const url of ['https://f95zone.to/threads/game.123/', 'https://f95zone.to/threads/123/page-2#post',
+    'https://pornolab.net/forum/viewtopic.php?t=3282477', 'https://pornolab.net/forum/viewtopic.php?t=2&start=20'])
     assert.equal(isSupportedGameUrl(url), true, url);
   for (const url of ['http://f95zone.to/threads/game.123/', 'https://evil.test/threads/game.123/',
     'https://f95zone.to.evil.test/threads/1', 'https://user@f95zone.to/threads/1',
     'https://f95zone.to:444/threads/1', 'https://f95zone.to/threads/',
-    'https://f95zone.to/threads/x%2F123', 'https://f95zone.to/\nthreads/1'])
+    'https://f95zone.to/threads/x%2F123', 'https://f95zone.to/\nthreads/1',
+    'https://pornolab.net.evil.test/forum/viewtopic.php?t=1', 'http://pornolab.net/forum/viewtopic.php?t=1',
+    'https://pornolab.net/forum/viewtopic.php?t=1&t=2', 'https://pornolab.net/forum/viewtopic.php?t=abc',
+    'https://pornolab.net/forum/index.php?t=1'])
     assert.equal(isSupportedGameUrl(url), false, url);
 });
 

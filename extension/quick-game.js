@@ -4,8 +4,12 @@ export function isSupportedGameUrl(value) {
   if (typeof value !== 'string' || value.length > 2000 || /[\x00-\x1f]/.test(value)) return false;
   try {
     const u = new URL(value);
-    return u.protocol === 'https:' && u.hostname === 'f95zone.to' && !u.username && !u.password &&
-      !u.port && !/%2f|%5c/i.test(u.pathname) && /^\/threads\/[^/]*\d+(?:\/|$)/.test(u.pathname);
+    if (u.protocol !== 'https:' || u.username || u.password || u.port) return false;
+    if (u.hostname === 'f95zone.to') return !/%2f|%5c/i.test(u.pathname) && /^\/threads\/[^/]*\d+(?:\/|$)/.test(u.pathname);
+    if (u.hostname === 'pornolab.net' && u.pathname === '/forum/viewtopic.php') {
+      const ids = u.searchParams.getAll('t'); return ids.length === 1 && /^[1-9][0-9]{0,11}$/.test(ids[0]);
+    }
+    return false;
   } catch { return false; }
 }
 
@@ -45,7 +49,7 @@ export async function setupQuickGame(ext, doc = document) {
   catch { message.textContent = 'Не удалось прочитать текущую вкладку.'; return; }
   const tab = tabs[0];
   if (!tab || !isSupportedGameUrl(tab.url)) {
-    message.textContent = 'Откройте тему игры на f95zone.to по HTTPS.';
+    message.textContent = 'Откройте тему игры на f95zone.to или pornolab.net по HTTPS.';
     return;
   }
   button.disabled = false;

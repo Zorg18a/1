@@ -42,6 +42,23 @@ class PornolabTests(unittest.TestCase):
         self.assertEqual(result['cover'], 'https://images.example/cover.jpg')
         self.assertEqual(result['thread'], URL)
 
+    def test_screenshot_style_title_tags_and_icon_before_cover(self):
+        html = ('<h1 class="maintitle">Example Game [1.0] (Example Studio) [uncen] '
+                '[2026, SLG, Mini-games, Fantasy, Unity] [eng+rus]</h1>'
+                '<div class="post_body"><div class="post-user-message">'
+                'Дата релиза: 2026/04/17<br>Теги: SLG, Mini-games, Fantasy, Unity<br>'
+                '<img class="postImg" src="https://images.example/tag-slg.jpg">'
+                '<img class="postImg postImgAligned img-right" src="https://images.example/cover.jpg">'
+                '</div></div>')
+        result = parse_topic(html, URL)
+        self.assertEqual((result['name'], result['version'], result['developer']),
+                         ('Example Game', '1.0', 'Example Studio'))
+        self.assertEqual(result['genres'], ['SLG', 'Mini-games', 'Fantasy', 'Unity'])
+        self.assertEqual(result['release'], '2026/04/17')
+        self.assertEqual(result['cover'], 'https://images.example/cover.jpg')
+        no_tags = html.replace('Теги: SLG, Mini-games, Fantasy, Unity<br>', '')
+        self.assertEqual(parse_topic(no_tags, URL)['genres'], ['SLG', 'Mini-games', 'Fantasy', 'Unity'])
+
     def test_rendered_post_image_and_var_placeholder_priority(self):
         image = 'https://i127.fastpic.org/big/2026/0511/52/example.jpeg'
         thumb = 'https://i127.fastpic.org/thumb/2026/0511/52/example.jpeg'

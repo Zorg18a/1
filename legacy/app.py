@@ -6,7 +6,7 @@ from core.local_http import LocalHTTPServer as ThreadingHTTPServer
 from pathlib import Path
 from storage.database import open_database, execute
 from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search, game_scan, reader_manifest, game_card_write
-from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress, backup_download, reader_images, recent_items, ui_assets, download_preflight, game_card_match, game_card_settings, game_check as game_check_batch
+from core import gamelib, pornolab, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress, backup_download, reader_images, recent_items, ui_assets, download_preflight, game_card_match, game_card_settings, game_check as game_check_batch
 from core.classify import classify
 from core.game_sources import quick_game_request
 from core.game_tags import save_tags_request
@@ -772,7 +772,7 @@ def fetch_cover(url, referer, key):
     data = cover_download.download_cover(url, referer, guard, opener(), cover_cache.MAX_COVER_BYTES)
     return cover_cache.cache_bytes(data, BASE)
 def apply_meta(meta, thread):  # создаёт или обновляет карточку игры; установленные файлы не трогаем
-    name = meta['name'] or thread; key = name_key(name); row = find_game(key, name); info = ginfo(row) if row else {}
+    name = meta['name'] or thread; key = name_key(name); row = pornolab.find_card(sql, find_game, key, name, thread); info = ginfo(row) if row else {}; meta = pornolab.safe_metadata(meta, row, info, thread)
     info['meta'] = dict(meta, thread=thread); info['checked'] = time.time(); info.setdefault('added', time.time()); info.setdefault('auto', True)
     inst = info.get('inst', {}).get('version', ''); info['update'] = bool(inst and gamelib.newer(meta.get('version', ''), inst))
     cover = ''
@@ -791,7 +791,7 @@ def game_card(job):  # вкладка в браузере -> карточка и
     url = job['url']; job['title'] = 'читаю страницу игры в вашем браузере…'; meta = gamelib.parse_thread(fetch_html(url, job), url)
     if meta.get('blocked'): raise RuntimeError('сайт показал проверку Cloudflare вместо страницы: откройте сайт в этом браузере, пройдите проверку и повторите')
     if not meta['name']: raise RuntimeError('на странице не нашлось названия игры (нужен вход на сайт?)')
-    apply_meta(meta, gamelib.thread_key(url)); job['title'] = 'Карточка: ' + meta['name']; job['final'] = f"готово: «{meta['name']}», версия {meta['version'] or 'не указана'}"
+    rid = apply_meta(meta, gamelib.thread_key(url)); card = sql('select thumb from items where id=?', (rid,))[0]; job['title'] = 'Карточка: ' + meta['name']; job['final'] = f"готово: «{meta['name']}», версия {meta['version'] or 'не указана'}" if card['thumb'] and Path(card['thumb']).is_file() else f"частично: карточка «{meta['name']}» создана, обложка недоступна"
 def game_check(job):  # session checkpoints; continuation never retries an uncertain attempt
     delay = float(os.environ.get('MEDIAHUB_GAME_DELAY', cfg.get('games_delay') or 8))
     return game_check_batch.run(job, ext_online, sql, ginfo, fetch_html, gamelib.parse_thread, apply_meta, delay)

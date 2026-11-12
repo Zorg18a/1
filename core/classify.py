@@ -2,7 +2,7 @@
 import re
 from urllib.parse import parse_qs, urlparse
 
-from core import gamelib
+from core import gamelib, pornolab
 
 
 def classify(url):  # тип материала и ключ для поиска в библиотеке (по адресу, без запросов в сеть)
@@ -18,5 +18,6 @@ def classify(url):  # тип материала и ключ для поиска 
     if h in ('soundcloud.com', 'bandcamp.com') or h.endswith('.bandcamp.com'): return dict(r, kind='audio')
     if h == 'podcasts.apple.com' or (h == 'open.spotify.com' and p.startswith('/show')) or p.endswith(('.rss', '.xml')): return dict(r, kind='podcast')
     if h == 'f95zone.to' and p.startswith('/threads/'): return dict(r, kind='game', key=gamelib.thread_key(url))
+    if pornolab.topic_url(url): return dict(r, key=pornolab.topic_url(url))  # Forum topics are not necessarily games.
     if h in ('store.steampowered.com', 'steamcommunity.com', 'gog.com', 'itch.io', 'store.epicgames.com') or h.endswith('.itch.io'): return dict(r, kind='game')
     return r

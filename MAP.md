@@ -12,7 +12,7 @@
 - `core/__init__.py` — Пакет бизнес-логики.
 - `core/classify.py` — классификация ссылок и нормализация ключей без сетевых запросов.
 - `core/game_cover.py`, `tests/test_game_cover.py`, `tests/test_game_persistence.py` — эвристика выбора обложки темы и проверка 83 синтетических вкладок и сохранения данных после перезапуска.
-- `core/pornolab.py`, `tests/test_pornolab.py` — не подключённый к приложению разбор предполагаемой структуры темы Pornolab и тест сохранения ссылки после перезапуска.
+- `core/pornolab.py`, `tests/test_pornolab.py`, `tests/test_pornolab_integration.py`, `tests/test_forum_fetch.mjs` — предварительный разбор темы Pornolab, тесты импорта, сохранения и запросов расширения на синтетических данных.
 - `core/search.py`, `storage/library_search.py` — поиск библиотеки по регистру и разделителям без изменения идентичности игр.
 - `storage/game_scan.py` — перечисление игр по явно выбранной глубине, без перехода по ссылкам и junction при обходе.
 - `ui/game-scan-settings.js` — настройка структуры для автосканирования и инструкция для ручного.

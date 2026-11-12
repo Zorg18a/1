@@ -171,12 +171,12 @@ async function mangaPages(p) {
 async function fetchHtml(p) {   // страница игры: сначала обычным запросом под вашим входом, при проверке «я не робот» — через окно браузера
   let html = '', via = 'fetch';
   try { const r = await fetch(p.url, { credentials: 'include' }); if (r.ok) html = await r.text(); } catch (e) {}
-  const blocked = !html || /Just a moment|cf-chl|challenge-platform/i.test(html) || !/<meta[^>]+og:title/i.test(html);
+  const blocked = new URL(p.url).hostname === 'pornolab.net' || !html || /Just a moment|cf-chl|challenge-platform/i.test(html) || !/<meta[^>]+og:title/i.test(html);
   if (blocked) {
     via = 'window'; const tab = await ensureWindow(p.url, p.site || new URL(p.url).origin); await navigate(tab.id, p.url);
     for (let i = 0; i < 40; i++) {      // проверка Cloudflare в обычном браузере обычно проходит сама за несколько секунд: ждём
       await sleep(1000); html = (await runInTab(tab.id, () => document.documentElement.outerHTML, [])) || '';
-      if (/<meta[^>]+og:title/i.test(html) && !/<title>\s*Just a moment/i.test(html)) break;
+      if ((new URL(p.url).hostname === 'pornolab.net' ? /<div\b[^>]*class\s*=\s*["'][^"']*\bpost_body\b/i.test(html) : /<meta[^>]+og:title/i.test(html)) && !/<title>\s*Just a moment/i.test(html)) break;
     }
     await closeWnd();
   }
