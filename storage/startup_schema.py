@@ -1,70 +1,34 @@
-"""Unified startup schema, for use inside a backup-first transaction only.
+"""Experimental unified startup schema; not wired into application startup.
 
-This is not yet wired into the application. It reproduces the existing schema
-steps and adds playback storage without silently ignoring incompatible schemas.
+Extends the legacy-only schema with playback storage inside a backup-first
+transaction. The validation is conservative, not a proof for arbitrary databases.
 """
 import sqlite3
 
-from storage import database, playback, schema_validation
-
-_ITEM_ADDITIONS = ('thumb', 'src', 'tracked int default 0', 'checked', 'info')
-_INBOX_COLUMNS = frozenset(('id', 'batch', 'tab_id', 'window_id', 'url', 'title', 'kind',
-                            'host', 'action', 'state', 'lib_id', 'close_tab', 'status',
-                            'reason', 'jobs', 'cmd', 'created'))
-_TAG_TRIGGER = ('create trigger delete_game_tags after delete on items '
-                'begin delete from game_tags where item_id = old.id; end')
-_REQUIRED = {
-    'items': {'id', 'title', 'author', 'topic', 'kind', 'path', 'root', 'url', 'size',
-              'added', 'thumb', 'src', 'tracked', 'checked', 'info'},
-    'progress': {'slug', 'cid', 'page', 'updated'},
-    'game_tags': {'item_id', 'position', 'tag'},
-    'playpos': {'item_id', 'pos', 'dur', 'updated'},
-    'inbox': _INBOX_COLUMNS,
-}
-
-
-def _columns(db, table):
-    return {row['name'] for row in db.execute(f'pragma table_info({table})')}
-
-
-def _require(db, table, required):
-    columns = _columns(db, table)
-    if not required.issubset(columns):
-        raise sqlite3.DatabaseError(f'Несовместимая таблица {table}; миграция отменена')
+from storage import legacy_startup_schema, playback
 
 
 def requires_migration(db):
-    """Read-only schema check; caller holds the write lock through any migration."""
-    types = {row['name']: row['type'] for row in db.execute("select name,type from sqlite_master")}
-    for table, required in _REQUIRED.items():
-        if types.get(table) != 'table' or not required.issubset(_columns(db, table)):
-            return True
-    triggers = {row['name']: row['sql'] for row in db.execute(
-        "select name,sql from sqlite_master where type='trigger' and name in "
-        "('delete_game_tags','mediahub_playpos_cleanup')")}
-    if len(triggers) != 2:
+    """Read-only schema check; caller holds the write lock through migration."""
+    if legacy_startup_schema.requires_migration(db):
         return True
-    if ' '.join(triggers['delete_game_tags'].lower().split()) != _TAG_TRIGGER:
-        raise sqlite3.DatabaseError('Несовместимый триггер game_tags; миграция отменена')
+    types = {row['name']: row['type'] for row in db.execute('select name,type from sqlite_master')}
+    progress = {row['name'] for row in db.execute('pragma table_info(progress)')}
+    columns = {row['name'] for row in db.execute('pragma table_info(playpos)')}
+    if types.get('playpos') != 'table' or not {'item_id', 'pos', 'dur', 'updated'}.issubset(columns) or 'updated' not in progress:
+        return True
+    trigger = db.execute("select sql from sqlite_master where type='trigger' and name='mediahub_playpos_cleanup'").fetchone()
+    if trigger is None:
+        return True
     playback.validate_schema(db)
-    schema_validation.validate(db)
     return False
 
 
 def initialize(db):
-    """Apply all steps atomically in an explicitly started caller transaction."""
+    """Apply legacy and playback steps atomically in a caller transaction."""
     if not db.in_transaction:
         raise ValueError('Для миграции необходима транзакция')
-    database.initialize(db)
-    _require(db, 'items', {'id', 'title', 'author', 'topic', 'kind', 'path', 'root',
-                           'url', 'size', 'added', 'thumb'})
-    _require(db, 'progress', {'slug', 'cid', 'page'})
-    _require(db, 'game_tags', {'item_id', 'position', 'tag'})
-    columns = _columns(db, 'items')
-    for declaration in _ITEM_ADDITIONS[1:]:
-        if declaration.split()[0] not in columns:
-            db.execute('alter table items add column ' + declaration)
-    db.execute("create table if not exists inbox(id integer primary key, batch text, tab_id int, window_id int, url text, title text, kind text, host text, action text, state text, lib_id int, close_tab int, status text, reason text default '', jobs text default '[]', cmd text default '', created text default current_timestamp)")
-    _require(db, 'inbox', _INBOX_COLUMNS)
+    legacy_startup_schema.initialize(db)
     playback.initialize(db)
-    schema_validation.validate(db)
+    if requires_migration(db):
+        raise sqlite3.DatabaseError('Неполная схема позиций; миграция отменена')

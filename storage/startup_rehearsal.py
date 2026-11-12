@@ -9,7 +9,7 @@ from pathlib import Path
 import sqlite3
 import threading
 
-from storage import backup_download, startup_schema
+from storage import backup_download, legacy_startup_schema, startup_schema
 
 
 class RehearsalError(Exception):
@@ -31,6 +31,7 @@ def rehearse(path):
             digest = hashlib.sha256(raw).hexdigest()
             work.execute('begin immediate')
             try:
+                legacy_needed = legacy_startup_schema.requires_migration(work)
                 needed = startup_schema.requires_migration(work)
                 if needed:
                     startup_schema.initialize(work)
@@ -40,8 +41,8 @@ def rehearse(path):
                 work.rollback()
             if hashlib.sha256(work.serialize()).hexdigest() != digest:
                 raise RehearsalError('Не удалось подтвердить откат пробной миграции')
-        return {'snapshot_sha256': digest, 'snapshot_bytes': len(raw), 'migration_needed': needed,
-                'rehearsal': 'ok', 'source_migrated': False}
+        return {'snapshot_sha256': digest, 'snapshot_bytes': len(raw), 'legacy_migration_needed': legacy_needed,
+                'migration_needed': needed, 'rehearsal': 'ok', 'source_migrated': False}
     except RehearsalError:
         raise
     except (backup_download.BackupError, sqlite3.Error, OSError, ValueError, AttributeError,

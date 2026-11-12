@@ -12,7 +12,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from storage import backup_download, backup_restore, playback_migration, startup_rehearsal, startup_schema
+from storage import backup_download, backup_restore, legacy_startup_schema, playback_migration, startup_rehearsal, startup_schema
 
 
 class StartupRehearsalTests(unittest.TestCase):
@@ -36,6 +36,7 @@ class StartupRehearsalTests(unittest.TestCase):
         before = self.path.read_bytes(); schema = self.schema()
         result = startup_rehearsal.rehearse(self.path)
         self.assertTrue(result['migration_needed'])
+        self.assertTrue(result['legacy_migration_needed'])
         self.assertFalse(result['source_migrated'])
         self.assertEqual(result['rehearsal'], 'ok')
         image = backup_download.snapshot(self.db, threading.Lock())
@@ -66,7 +67,18 @@ class StartupRehearsalTests(unittest.TestCase):
         before = self.path.read_bytes()
         result = startup_rehearsal.rehearse(self.path)
         self.assertFalse(result['migration_needed'])
+        self.assertFalse(result['legacy_migration_needed'])
         self.assertEqual(self.path.read_bytes(), before)
+
+    def test_legacy_ready_is_distinct_from_experimental_playback_schema(self):
+        self.db.row_factory = sqlite3.Row
+        backups = self.root / 'backup'; backups.mkdir()
+        playback_migration.migrate(self.db, backups, initialize=legacy_startup_schema.initialize,
+                                   needs=legacy_startup_schema.requires_migration)
+        result = startup_rehearsal.rehearse(self.path)
+        self.assertFalse(result['legacy_migration_needed'])
+        self.assertTrue(result['migration_needed'])
+        self.assertIsNone(self.db.execute("select name from sqlite_master where name='playpos'").fetchone())
 
     def test_wal_snapshot_has_committed_data(self):
         self.db.execute('pragma journal_mode=wal')
