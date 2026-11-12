@@ -1,5 +1,6 @@
 """Conservative, read-only suggestions for manually downloaded game archives."""
 from storage.incoming_downloads import ARCHIVE_EXTENSIONS, incoming_folder, list_archives
+from storage.extra_game_root import validate_root
 from core.save_preview import save_preview_request
 from core import local_game_match
 
@@ -22,6 +23,12 @@ def preview_request(data, lookup, game_view, parse_name, download_folder, games_
     if 'mode' in data:
         if data['mode'] == 'local_search':
             return local_game_match.find(game, games_root, parse_name, db, lock)
+        if data['mode'] == 'local_search_other':
+            try:
+                root = validate_root(data.get('root'))
+            except ValueError as exc:
+                return {'error': str(exc)}, 400
+            return local_game_match.find(game, root, parse_name, db, lock, allow_link=False)
         if data['mode'] == 'local_link':
             if db is None or lock is None or cfg is None:
                 return {'error': 'Связывание недоступно'}, 503

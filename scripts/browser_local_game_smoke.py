@@ -16,6 +16,10 @@ def run(root):
     folder = games / 'new7' / 'HiddenBadge_20260828c'
     (folder / 'saves').mkdir(parents=True)
     (folder / 'saves' / 'slot.sav').write_bytes(b'keep')
+    extra = root / 'OtherDisk'
+    other_folder = extra / 'HiddenBadge_20260828c'
+    other_folder.mkdir(parents=True)
+    (other_folder / 'data.txt').write_text('unchanged', encoding='utf-8')
     app.cfg['games_root'] = str(games)
     app.sql("insert into items(id,title,kind,path,url,info) values(1,'Hidden Badge','game','','game:hiddenbadge',?)",
             (json.dumps({'meta': {'thread': 'https://example.com/'}, 'note': 'keep'}),))
@@ -33,6 +37,13 @@ def run(root):
                 expect(card).to_have_count(2); card.filter(has_text='Hidden Badge').click()
                 panel = page.locator('#gpanel')
                 section = panel.locator('.local-game-search')
+                section.get_by_label('Дополнительная папка для разового поиска', exact=False).fill(str(extra))
+                section.get_by_role('button', name='Искать в дополнительной папке').click()
+                expect(section).to_contain_text(str(other_folder))
+                expect(section).to_contain_text('только просмотр, привязка недоступна')
+                expect(section.get_by_role('button', name='Связать с карточкой:', exact=False)).to_have_count(0)
+                assert app.sql('select path from items where id=1')[0]['path'] == ''
+                assert (other_folder / 'data.txt').read_text('utf-8') == 'unchanged'
                 section.get_by_role('button', name='Найти игру на диске').click()
                 expect(section).to_contain_text('Путь уже связан с другой карточкой')
                 expect(section).to_contain_text('Existing card')

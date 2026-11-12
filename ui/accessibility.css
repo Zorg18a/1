@@ -32,7 +32,10 @@ html[data-contrast="high"] ::placeholder { color:var(--mute); opacity:1 }
 .game-tags-form { margin:16px 0; display:grid; gap:8px }
 .game-tags-form small { color:var(--mute) }
 .game-tags-form [role="status"] { overflow-wrap:anywhere }
-.update-preview p, .update-preview li, .local-game-search p, .local-game-search li { overflow-wrap:anywhere }
+.update-preview p, .update-preview li, .local-game-search p, .local-game-search li, .local-game-extra label { overflow-wrap:anywhere }
+.local-game-extra { margin-top:12px }
+.local-game-extra label { display:block }
+.local-game-extra input { display:block; width:100%; max-width:100%; box-sizing:border-box; margin:6px 0 }
 .player-preview { margin-top:8px; color:var(--text); text-decoration:underline; overflow-wrap:anywhere }
 .library-playback-hint { margin:12px 0; overflow-wrap:anywhere }
 /* Fit the entire source image, with space around images of other aspect ratios. */

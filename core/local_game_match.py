@@ -43,7 +43,7 @@ def _remember(candidate, root, snapshot):
         return token
 
 
-def find(game, root, parse_name, db=None, lock=None):
+def find(game, root, parse_name, db=None, lock=None, *, allow_link=True):
     try:
         result = search(root, game['title'], parse_name)
         snapshot = _snapshot(game)
@@ -51,7 +51,7 @@ def find(game, root, parse_name, db=None, lock=None):
         ownership = associations(db, lock, candidates, game['id']) if db is not None and lock is not None else [
             {'state': 'unknown', 'cards': [], 'extra': 0} for _ in candidates]
         for candidate, association in zip(candidates, ownership):
-            if candidate['kind'] == 'folder' and not game['path'] and association['state'] == 'none':
+            if allow_link and candidate['kind'] == 'folder' and not game['path'] and association['state'] == 'none':
                 candidate['token'] = _remember(dict(candidate), result['root'], snapshot)
             candidate.pop('identity', None)
             candidate['association'] = association

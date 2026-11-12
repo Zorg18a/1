@@ -19,8 +19,9 @@ function setup(fetcher, confirm = () => true) {
   const win = { addEventListener: (type, fn) => { win.open = fn; }, confirm, loadGames: async () => { win.reloaded = true; } };
   setupLocalGameSearch({ win, doc, fetcher });
   win.open({ detail: { id: 1, title: 'Hidden Badge', g: { downloaded: false } } });
-  const [, , button, status, results] = panel.section.children;
-  return { button, status, results, win };
+  const [, , button, status, results, extra] = panel.section.children;
+  const input = extra.children[0].children[0], extraButton = extra.children[2];
+  return { button, status, results, win, input, extraButton };
 }
 const candidate = { path: 'G:\\PG\\new7\\HiddenBadge_20260828c', kind: 'folder', reason: 'дата', token: 'secret',
   association: { state: 'none', cards: [], extra: 0 } };
@@ -72,6 +73,19 @@ test('unknown association never offers binding even with a token', async () => {
   await f.button.click(); const item = f.results.children[0].children[0];
   assert.match(item.children[1].textContent, /Не удалось проверить/);
   assert.equal(item.children.length, 2);
+});
+
+test('extra root is explicit, read-only and clears results when edited', async () => {
+  const calls = [];
+  const f = setup(async (url, opts) => { calls.push(JSON.parse(opts.body)); return ok(result); });
+  f.input.value = '';
+  await f.extraButton.click(); assert.equal(calls.length, 0); assert.match(f.status.textContent, /Укажите/);
+  f.input.value = 'D:\\\\Games';
+  await f.extraButton.click();
+  assert.deepEqual(calls, [{ id: 1, mode: 'local_search_other', root: 'D:\\\\Games' }]);
+  assert.match(f.status.textContent, /только просмотр/);
+  assert.equal(f.results.children[0].children[0].children.length, 2); // No link even if a response contains a token.
+  f.input.handlers.input(); assert.equal(f.results.children.length, 0);
 });
 
 test('stale association and malformed result show error and permit a new search', async () => {

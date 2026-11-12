@@ -10,9 +10,18 @@ export function setupLocalGameSearch({ win = window, doc = document, fetcher = f
     const button = doc.createElement('button'); button.type = 'button'; button.className = 'btn'; button.textContent = 'Найти игру на диске';
     const status = doc.createElement('p'); status.className = 'mu'; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
     const results = doc.createElement('div');
-    section.append(heading, help, button, status, results);
+    const extra = doc.createElement('div'); extra.className = 'local-game-extra';
+    const label = doc.createElement('label'); label.textContent = 'Дополнительная папка для разового поиска (абсолютный путь)';
+    const input = doc.createElement('input'); input.type = 'text'; input.placeholder = 'D:\\Игры'; input.maxLength = 2048;
+    label.append(input);
+    const extraHelp = doc.createElement('p'); extraHelp.className = 'mu';
+    extraHelp.textContent = 'Укажите папку, содержащую игры: сама выбранная папка не сравнивается с названием. Результаты только показываются, без привязки. Путь не сохраняется и автосканирование не меняется. На медленных дисках системный вызов может задержаться.';
+    const extraButton = doc.createElement('button'); extraButton.type = 'button'; extraButton.className = 'btn'; extraButton.textContent = 'Искать в дополнительной папке';
+    extra.append(label, extraHelp, extraButton);
+    section.append(heading, help, button, status, results, extra);
     panel.insertBefore(section, panel.querySelector(':scope > h4'));
     let busy = false;
+    input.addEventListener('input', () => { if (!busy) { results.replaceChildren(); status.textContent = ''; } });
     async function request(body) {
       const response = await fetcher('/api/game/incoming', { method: 'POST',
         headers: { 'X-MH': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ id: game.id, ...body }) });
@@ -21,11 +30,14 @@ export function setupLocalGameSearch({ win = window, doc = document, fetcher = f
       if (!response.ok) throw Error(typeof data?.error === 'string' ? data.error : 'Не удалось выполнить запрос');
       return data;
     }
-    button.addEventListener('click', async () => {
+    async function runSearch(other) {
       if (busy) return;
-      busy = true; button.disabled = true; results.replaceChildren(); status.textContent = 'Ищу в папке игр…';
+      const root = input.value;
+      if (other && !root) { status.textContent = 'Укажите абсолютный путь к дополнительной папке.'; results.replaceChildren(); return; }
+      busy = true; button.disabled = true; extraButton.disabled = true; input.disabled = true;
+      results.replaceChildren(); status.textContent = 'Ищу в выбранной папке…';
       try {
-        const data = await request({ mode: 'local_search' });
+        const data = await request(other ? { mode: 'local_search_other', root } : { mode: 'local_search' });
         if (!data || typeof data.root !== 'string' || !Array.isArray(data.candidates) ||
             data.candidates.length > 100 || typeof data.incomplete !== 'boolean' ||
             !Number.isSafeInteger(data.scanned) || data.scanned < 0) throw Error('Некорректный ответ сервера');
@@ -33,6 +45,7 @@ export function setupLocalGameSearch({ win = window, doc = document, fetcher = f
         status.textContent = `Корень: ${data.root}. Проверено записей: ${data.scanned}. Найдено: ${candidates.length}.` +
           (data.incomplete ? ' Поиск неполный: проверьте структуру папок и пропущенные элементы.' : '') +
           ' Это только возможные совпадения; отсутствие результата не доказывает отсутствия игры.' +
+          (other ? ' Дополнительная папка: только просмотр, привязка недоступна.' : '') +
           (candidates.some(c => c?.kind === 'folder' && c.token === null) ? ' Для части папок сейчас нельзя создать подтверждение; повторите поиск позже.' : '');
         const list = doc.createElement('ul');
         for (const candidate of candidates) {
@@ -66,13 +79,13 @@ export function setupLocalGameSearch({ win = window, doc = document, fetcher = f
             const more = doc.createElement('p'); more.textContent = `Других связанных карточек: ${association.extra}.`;
             item.append(more);
           }
-          if (candidate.kind === 'folder' && association.state === 'none' && typeof candidate.token === 'string') {
+          if (!other && candidate.kind === 'folder' && association.state === 'none' && typeof candidate.token === 'string') {
             const choose = doc.createElement('button'); choose.type = 'button'; choose.className = 'btn';
             choose.textContent = 'Связать с этой карточкой';
             choose.setAttribute('aria-label', `Связать с карточкой: ${candidate.path}`);
             choose.addEventListener('click', async () => {
               if (busy || !win.confirm(`Связать карточку «${game.title}» с папкой?\n\n${candidate.path}\n\nПроверьте, что это нужная игра. Файлы не перемещаются и не удаляются.`)) return;
-              busy = true; button.disabled = true; choose.disabled = true; status.textContent = 'Сохраняю связь…';
+              busy = true; button.disabled = true; extraButton.disabled = true; input.disabled = true; choose.disabled = true; status.textContent = 'Сохраняю связь…';
               try {
                 const saved = await request({ mode: 'local_link', token: candidate.token });
                 if (saved?.ok !== 1 || saved.path !== candidate.path) throw Error('Некорректный ответ сервера');
@@ -80,7 +93,7 @@ export function setupLocalGameSearch({ win = window, doc = document, fetcher = f
                 if (typeof win.loadGames === 'function') await win.loadGames();
                 else status.textContent = 'Связь сохранена. Обновите список игр.';
               } catch (error) { results.replaceChildren(); status.textContent = `${error.message || 'Ошибка связи'}. Выполните поиск заново и проверьте карточку.`; }
-              finally { busy = false; button.disabled = false; choose.disabled = false; }
+              finally { busy = false; button.disabled = false; extraButton.disabled = false; input.disabled = false; choose.disabled = false; }
             });
             item.append(choose);
           }
@@ -88,7 +101,9 @@ export function setupLocalGameSearch({ win = window, doc = document, fetcher = f
         }
         results.append(list);
       } catch (error) { results.replaceChildren(); status.textContent = error.message || 'Поиск не выполнен'; }
-      finally { busy = false; button.disabled = false; }
-    });
+      finally { busy = false; button.disabled = false; extraButton.disabled = false; input.disabled = false; }
+    }
+    button.addEventListener('click', () => runSearch(false));
+    extraButton.addEventListener('click', () => runSearch(true));
   });
 }
