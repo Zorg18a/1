@@ -48,7 +48,8 @@ def open_relative(parent, name, *, directory, shared_write=False):
     attributes = _ObjectAttributes(ctypes.sizeof(_ObjectAttributes), parent, ctypes.pointer(text),
                                    0x40, None, None)  # OBJ_CASE_INSENSITIVE
     status_block, handle = _IoStatus(), wintypes.HANDLE()
-    access = (0x80 | 0x20 if directory else 0x80 if shared_write else 0x80000000) | 0x100000
+    # Attribute-only file access may not participate in Windows share checks.
+    access = (0x80 | 0x20 if directory else 0x80000000) | 0x100000
     share = 1 | (2 if directory or shared_write else 0)  # no delete; shared_write permits writers
     options = 0x00200000 | 0x20 | (0x1 if directory else 0x40)  # reparse point, synchronous, type
     status = _nt.NtCreateFile(ctypes.byref(handle), access, ctypes.byref(attributes),
