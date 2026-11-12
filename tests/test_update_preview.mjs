@@ -14,8 +14,9 @@ test('preview requests only an id, reports failures and renders names as text', 
   const saveButton = { addEventListener() {} };
   const section = { isConnected: true, querySelector(s) { return s === '.save-preview-button' ? saveButton : s === 'button' ? button : s === '[role="status"]' ? status : results; } };
   let inserted = false, request, fail = true, tick, cleared = false;
-  const panel = { querySelector(s) { return s === '.update-preview' ? (inserted ? section : null) : {}; },
-    insertBefore() { inserted = true; } };
+  const directHeading = {}, nestedHeading = {};
+  const panel = { querySelector(s) { return s === '.update-preview' ? (inserted ? section : null) : s === ':scope > h4' ? directHeading : nestedHeading; },
+    insertBefore(_node, anchor) { assert.equal(anchor, directHeading); inserted = true; } };
   try {
     globalThis.window = { addEventListener(type, fn) { listeners[type] = fn; },
       setInterval(fn, ms) { assert.equal(ms, 15000); tick = fn; return 1; }, clearInterval() { cleared = true; } };

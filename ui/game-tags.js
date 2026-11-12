@@ -30,6 +30,6 @@ export function setupGameTags() {
       } catch (error) { status.textContent = error.message || 'Не удалось сохранить теги'; }
       finally { button.disabled = false; }
     });
-    panel.insertBefore(form, panel.querySelector('h4'));
+    panel.insertBefore(form, panel.querySelector(':scope > h4'));
   });
 }

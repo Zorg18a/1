@@ -11,7 +11,7 @@ export function setupLocalGameSearch({ win = window, doc = document, fetcher = f
     const status = doc.createElement('p'); status.className = 'mu'; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
     const results = doc.createElement('div');
     section.append(heading, help, button, status, results);
-    panel.insertBefore(section, panel.querySelector('h4'));
+    panel.insertBefore(section, panel.querySelector(':scope > h4'));
     let busy = false;
     async function request(body) {
       const response = await fetcher('/api/game/incoming', { method: 'POST',

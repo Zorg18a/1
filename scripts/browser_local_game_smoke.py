@@ -42,6 +42,9 @@ def run(root):
                 page.once('dialog', lambda dialog: dialog.accept()); choose.click()
                 expect(panel).to_contain_text('Скачано')
                 expect(panel).to_contain_text(str(folder))
+                expect(panel.locator('.local-game-search')).to_be_visible()
+                expect(panel.locator('.game-tags-form')).to_be_visible()
+                expect(panel.locator('.update-preview')).to_be_visible()
                 assert app.sql('select path from items where id=1')[0]['path'] == str(folder)
                 assert (folder / 'saves' / 'slot.sav').read_bytes() == b'keep'
                 assert panel.evaluate('e => e.scrollWidth <= e.clientWidth + 1')

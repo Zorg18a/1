@@ -173,7 +173,7 @@ export function setupUpdatePreview() {
       finally { button.disabled = false; }
     };
     button.addEventListener('click', () => refresh(true));
-    panel.insertBefore(section, panel.querySelector('h4'));
+    panel.insertBefore(section, panel.querySelector(':scope > h4'));
     refresh();
     const timer = window.setInterval(() => {
       if (!section.isConnected || document.querySelector('#gpanel')?.getAttribute('aria-hidden') === 'true' ||
