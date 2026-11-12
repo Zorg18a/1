@@ -1,6 +1,7 @@
 """Conservative, read-only suggestions for manually downloaded game archives."""
 from storage.incoming_downloads import ARCHIVE_EXTENSIONS, incoming_folder, list_archives
 from core.save_preview import save_preview_request
+from core import local_game_match
 
 DISPLAY_LIMIT = 50
 
@@ -12,13 +13,19 @@ def archive_stem(name):
     return name
 
 
-def preview_request(data, lookup, game_view, parse_name, download_folder, games_root):
+def preview_request(data, lookup, game_view, parse_name, download_folder, games_root, db=None, lock=None, cfg=None):
     if not isinstance(data, dict) or type(data.get('id')) is not int or data['id'] < 1:
         return {'error': 'Некорректный идентификатор игры'}, 400
     game = lookup(data['id'])
     if game is None:
         return {'error': 'Игра не найдена'}, 404
     if 'mode' in data:
+        if data['mode'] == 'local_search':
+            return local_game_match.find(game, games_root, parse_name)
+        if data['mode'] == 'local_link':
+            if db is None or lock is None or cfg is None:
+                return {'error': 'Связывание недоступно'}, 503
+            return local_game_match.link(data, db, lock, cfg)
         if data['mode'] not in ('saves', 'save_inventory'):
             return {'error': 'Неизвестный режим просмотра'}, 400
         return save_preview_request(data, game, game_view, games_root)

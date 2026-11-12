@@ -5,7 +5,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from storage.database import open_database, execute
 from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search, game_scan, reader_manifest
-from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress, backup_download, reader_images, recent_items, ui_assets, download_preflight
+from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress, backup_download, reader_images, recent_items, ui_assets, download_preflight, game_card_match
 from core.classify import classify
 from core.game_sources import quick_game_request
 from core.game_tags import save_tags_request
@@ -517,7 +517,7 @@ def sync_games(games, root):  # установленные игры: слива�
         newest = next((g for g, _ in ms if keep and g['path'] == keep['path']), None) or max((g for g, _ in ms), key=lambda g: g.get('mtime') or 0)
         pn = next(p for g, p in ms if g is newest); title = (gr['title'] if gr else ms[0][1]['base']) or ms[0][0]['name']; old = sum(1 for r in (gr['members'] if gr else []) if r['status'] in ('старая', 'дубль'))
         inst = {'version': (keep or {}).get('version') or (pn.get('text') or ''), 'versions': len(ms), 'old': old, 'root': root, 'path': newest['path']}
-        row = find_game(key, title); info = ginfo(row) if row else {}; info['inst'] = inst; info.setdefault('added', time.time()); info.setdefault('auto', True)
+        row = find_game(key, title, newest['path']); info = ginfo(row) if row else {}; info['inst'] = inst; info.setdefault('added', time.time()); info.setdefault('auto', True)
         mv = info.get('meta', {}).get('version', ''); info['update'] = bool(mv and inst['version'] and gamelib.newer(mv, inst['version'])); cover = ''
         if not (row and row['thumb'] and Path(row['thumb']).is_file()):
             try: cover = cover_cache.cache_local_cover(newest['path'], cfg['folder'])
@@ -762,17 +762,7 @@ def ginfo(r):
     try: return json.loads(r['info'] or '{}')
     except Exception: return {}
 def ginfo_save(rid, info): sql('update items set info=? where id=?', (json.dumps(info, ensure_ascii=False), rid))
-def find_game(key, title=''):  # сначала точный ключ, затем похожее название (папка и тема называются по-разному)
-    r = sql("select * from items where kind='game' and url=?", ('game:' + key,))
-    if r: return r[0]
-    import difflib
-    best, score = None, 0.0
-    for x in sql("select * from items where kind='game'"):
-        k = x['url'][5:] if str(x['url']).startswith('game:') else name_key(x['title'])
-        if re.findall(r'\d+', k) != re.findall(r'\d+', key): continue  # разные номера
-        s = difflib.SequenceMatcher(None, k, key).ratio()
-        if s > score: best, score = x, s
-    return best if score >= 0.9 else None
+def find_game(key, title='', path=None): return game_card_match.find_game(sql, name_key, key, title, path)
 def game_view(r):  # всё, что нужно карточке в библиотеке
     i = ginfo(r); m = i.get('meta', {}); inst = i.get('inst', {}); dl = bool(r['path'] and Path(r['path']).exists())
     return {'downloaded': dl, 'version': inst.get('version', '') if dl else '', 'latest': m.get('version', ''), 'update': bool(i.get('update') and dl), 'genres': m.get('genres', []), 'developer': m.get('developer', ''),
@@ -1014,7 +1004,7 @@ class H(BaseHTTPRequestHandler):
             game_ids = [d['id']] if d.get('id') else None
             return self.js({'job': new_job('games:check', 'gamecheck', ids=game_ids, title='Проверка игр')})
         if p == '/api/game/zip-inspect': return self.js(*inspect_request(d, lambda item_id: next(iter(sql("select * from items where id=? and kind='game'", (item_id,))), None), gamesweep.parse_name, cfg['folder'], cfg.get('games_root', '')))
-        if p == '/api/game/incoming': return self.js(*preview_request(d, lambda item_id: next(iter(sql("select * from items where id=? and kind='game'", (item_id,))), None), game_view, gamesweep.parse_name, cfg['folder'], cfg.get('games_root', '')))
+        if p == '/api/game/incoming': return self.js(*preview_request(d, lambda i: next(iter(sql("select * from items where id=? and kind='game'", (i,))),None), game_view, gamesweep.parse_name, cfg['folder'], cfg.get('games_root',''), db,lock,cfg))
         if p == '/api/game/tags': return self.js(*save_tags_request(d, lambda item_id, tags: game_tags.replace_tags(db, lock, item_id, tags)))
         if p == '/api/game/set':
             r = sql("select * from items where id=? and kind='game'", (d.get('id'),))

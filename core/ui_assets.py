@@ -20,6 +20,7 @@ UI_FILES = frozenset((
     '/ui/library-search.js',
     '/ui/library-playback-hint.js',
     '/ui/game-tags.js',
+    '/ui/local-game-search.js',
     '/ui/game-update-preview.js',
     '/ui/save-inventory.js',
     '/ui/accessibility.css',

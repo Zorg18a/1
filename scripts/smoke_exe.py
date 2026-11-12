@@ -54,6 +54,7 @@ def check(process):
     assert status == 400 and json.loads(body)['error']
     assert get(8765, '/ui/app.js')[0] == 200
     assert get(8765, '/ui/library-search.js')[0] == 200
+    assert get(8765, '/ui/local-game-search.js')[0] == 200
     assert get(8765, '/ui/library-playback-hint.js')[0] == 200
     assert get(8765, '/ui/recent.js')[0] == 200
     status, body = get(8765, '/api/recent/999')
