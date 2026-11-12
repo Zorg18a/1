@@ -6,7 +6,7 @@ import tempfile
 import threading
 import traceback
 import zipfile
-from http.server import ThreadingHTTPServer
+from core.local_http import LocalHTTPServer as ThreadingHTTPServer
 
 
 def run(root):

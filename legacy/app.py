@@ -1,7 +1,8 @@
 import sys, base64, hmac, secrets, http.client, json, logging, os, re, subprocess, shutil, sqlite3, threading, time, webbrowser, urllib.request, itertools, http.cookiejar, mimetypes
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse, urljoin, unquote, parse_qs
-from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler
+from core.local_http import LocalHTTPServer as ThreadingHTTPServer
 from pathlib import Path
 from storage.database import open_database, execute
 from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search, game_scan, reader_manifest

@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import threading
 import traceback
-from http.server import ThreadingHTTPServer
+from core.local_http import LocalHTTPServer as ThreadingHTTPServer
 
 # One valid one-pixel PNG; the file is created only after the first failed load.
 PNG = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC')
