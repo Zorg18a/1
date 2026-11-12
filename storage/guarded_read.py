@@ -130,23 +130,52 @@ class GuardedFile:
         self.close()
 
 
-def open_guarded_file(root, relative):
-    """Read one file under a locked directory chain. Windows NTFS only."""
+class GuardedDirectory:
+    """Keep handles on the verified directory chain, without locking its files."""
+    def __init__(self, directories):
+        self._directories = directories
+
+    def close(self):
+        while self._directories:
+            _kernel.CloseHandle(self._directories.pop())
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        self.close()
+
+
+def open_guarded_directory(root):
+    """Open an existing directory chain without following links; Windows NTFS only."""
     if os.name != 'nt':
-        raise GuardedReadUnsupported('Защищённое чтение пока доступно только на Windows NTFS')
-    parts = _relative_parts(relative)
+        raise GuardedReadUnsupported('Защищённые каталоги доступны только на Windows NTFS')
     if not isinstance(root, str) or not root or len(root) > 1024 or '..' in re.split(r'[/\\]', root):
-        raise GuardedReadError('Некорректный корень папки игры')
+        raise GuardedReadError('Некорректный путь каталога')
     top = Path(root)
     if not top.is_absolute() or not re.fullmatch(r'[A-Za-z]:\\', top.anchor) or len(top.parts) > 64:
         raise GuardedReadError('Требуется абсолютный путь на локальном диске')
     for component in top.parts[1:]:
         _relative_parts(component)
     _fixed_ntfs(top.anchor)
-    directories = []
+    guard = GuardedDirectory([])
     try:
-        directories.append(_open_handle(Path(top.anchor), directory=True))
-        for part in (*top.parts[1:], *parts[:-1]):
+        guard._directories.append(_open_handle(Path(top.anchor), directory=True))
+        for part in top.parts[1:]:
+            guard._directories.append(_open_relative(guard._directories[-1], part, directory=True))
+        return guard
+    except BaseException:
+        guard.close()
+        raise
+
+
+def open_guarded_file(root, relative):
+    """Read one file under a locked directory chain. Windows NTFS only."""
+    parts = _relative_parts(relative)
+    guard = open_guarded_directory(root)
+    directories = guard._directories
+    try:
+        for part in parts[:-1]:
             directories.append(_open_relative(directories[-1], part, directory=True))
         handle = _open_relative(directories[-1], parts[-1], directory=False)
         try:
@@ -161,6 +190,5 @@ def open_guarded_file(root, relative):
             raise
         return GuardedFile(stream, directories)
     except BaseException:
-        while directories:
-            _kernel.CloseHandle(directories.pop())
+        guard.close()
         raise

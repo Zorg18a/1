@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from storage import guarded_read, windows_relative
-from storage.guarded_read import GuardedReadError, GuardedReadUnsupported, _relative_parts, open_guarded_file
+from storage.guarded_read import GuardedReadError, GuardedReadUnsupported, _relative_parts, open_guarded_directory, open_guarded_file
 
 
 class GuardedPathValidationTests(unittest.TestCase):
@@ -27,6 +27,8 @@ class GuardedPathValidationTests(unittest.TestCase):
     def test_non_windows_fails_closed(self):
         with self.assertRaises(GuardedReadUnsupported):
             open_guarded_file('/tmp', 'save.sav')
+        with self.assertRaises(GuardedReadUnsupported):
+            open_guarded_directory('/tmp')
 
 
 @unittest.skipUnless(os.name == 'nt', 'requires Windows NTFS handle semantics')
@@ -87,6 +89,16 @@ class GuardedWindowsTests(unittest.TestCase):
         moved = self.game / 'renamed'
         (self.game / 'saves').rename(moved)
         self.assertEqual((moved / 'slot.sav').read_bytes(), b'original')
+
+    def test_directory_guard_keeps_chain_but_does_not_lock_child_files(self):
+        guard = open_guarded_directory(str(self.game / 'saves'))
+        with guard:
+            with self.assertRaises(OSError): (self.game / 'saves').rename(self.game / 'moved')
+            self.file.write_bytes(b'changed')  # A directory guard does not protect children.
+            with self.assertRaises(OSError): open_guarded_directory(str(self.file))
+        guard.close()  # Safe to release twice.
+        (self.game / 'saves').rename(self.game / 'moved')
+        self.assertEqual((self.game / 'moved' / 'slot.sav').read_bytes(), b'changed')
 
     def test_rejects_active_writer_hardlink_and_missing_path(self):
         with self.file.open('r+b'):
