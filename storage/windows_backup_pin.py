@@ -36,21 +36,30 @@ class PinnedFile:
         self.close()
 
 
-def pin_created_file(directory, name, fd):
-    """Pin a file only if it is still the same object as the caller's open fd."""
+def pin_existing_file(directory, name):
+    """Pin one existing regular file; the caller must keep directory open."""
     if os.name != 'nt':
         raise guarded_read.GuardedReadUnsupported('Защищённый файл доступен только на Windows NTFS')
     if not isinstance(directory, guarded_read.GuardedDirectory) or not directory._directories:
         raise guarded_read.GuardedReadError('Каталог должен оставаться открытым')
-    if len(guarded_read._relative_parts(name)) != 1 or type(fd) is not int or fd < 0:
-        raise guarded_read.GuardedReadError('Некорректное имя или дескриптор файла')
-    original = msvcrt.get_osfhandle(fd)
+    if len(guarded_read._relative_parts(name)) != 1:
+        raise guarded_read.GuardedReadError('Некорректное имя файла')
     handle = windows_relative.open_relative(directory._directories[-1], name, directory=False, shared_write=True)
-    handle = guarded_read._check_handle(handle, directory=False)
+    return PinnedFile(guarded_read._check_handle(handle, directory=False))
+
+
+def pin_created_file(directory, name, fd):
+    """Pin a file only if it is still the same object as the caller's open fd."""
+    if os.name != 'nt':
+        raise guarded_read.GuardedReadUnsupported('Защищённый файл доступен только на Windows NTFS')
+    if type(fd) is not int or fd < 0:
+        raise guarded_read.GuardedReadError('Некорректный дескриптор файла')
+    original = msvcrt.get_osfhandle(fd)
+    pin = pin_existing_file(directory, name)
     try:
-        if _identity(original) != _identity(handle):
+        if _identity(original) != _identity(pin._handle):
             raise guarded_read.GuardedReadError('Файл изменился при открытии')
-        return PinnedFile(handle)
+        return pin
     except BaseException:
-        guarded_read._kernel.CloseHandle(handle)
+        pin.close()
         raise

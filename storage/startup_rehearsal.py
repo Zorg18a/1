@@ -9,18 +9,20 @@ from pathlib import Path
 import sqlite3
 import threading
 
-from storage import backup_download, legacy_startup_schema, startup_schema
+from storage import backup_download, guarded_source, legacy_startup_schema, startup_schema
 
 
 class RehearsalError(Exception):
     """The snapshot or experimental migration could not be safely rehearsed."""
 
 
-def rehearse(path):
-    """Return a data-free summary; no modifications are made to the source schema."""
+def rehearse(path, *, guard_source=False):
+    """Rehearse in memory; optionally pin the source name on Windows NTFS."""
     source = Path(path)
     try:
-        with closing(sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True, timeout=1)) as db:
+        connection = (guarded_source.open_source(path) if guard_source else
+                      closing(sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True, timeout=1)))
+        with connection as db:
             db.execute('pragma trusted_schema=off')
             db.execute('pragma query_only=on')
             raw = backup_download.snapshot(db, threading.Lock())
