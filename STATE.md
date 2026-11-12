@@ -14,8 +14,9 @@
   Node-тестов, compileall, GameSweep 73/73 и `git diff --check`. Первая Windows-проверка
   [43262271310](https://github.com/Zorg18a/1/actions/runs/43262271310) обнаружила, что
   дескриптор с доступом только к атрибутам не блокировал удаление. С правом чтения и
-  разрешённой записью [Windows CI 43262634131](https://github.com/Zorg18a/1/actions/runs/43262634131)
-  прошёл тесты pin, SQLite backup и hard link, весь Edge, сборку и smoke EXE.
+  разрешённой записью Windows CI [43262634131](https://github.com/Zorg18a/1/actions/runs/43262634131)
+  и [43263592908](https://github.com/Zorg18a/1/actions/runs/43263592908) прошли тесты
+  pin, SQLite backup, hard link и замену имени, весь Edge, сборку и smoke EXE.
 
 ## Экспериментальная защита каталога резервной копии
 
