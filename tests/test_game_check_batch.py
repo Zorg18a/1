@@ -11,7 +11,7 @@ class GameCheckBatchTests(unittest.TestCase):
         code = r'''
 from legacy import app
 app.ext_online = lambda: True
-rows = [{'id': i, 'title': f'Game {i}', 'thread': f'https://example.com/threads/{i}/'} for i in range(1, 87)]
+rows = [{'id': i, 'title': f'Game {i}', 'kind': 'game', 'url': f'game:{i}', 'thread': f'https://example.com/threads/{i}/'} for i in range(1, 87)]
 def sql(query, params=()):
     if query == "select * from items where kind='game'": return rows
     if query == 'select * from items where id=?': return [rows[params[0] - 1]]

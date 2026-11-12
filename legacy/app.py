@@ -6,7 +6,7 @@ from core.local_http import LocalHTTPServer as ThreadingHTTPServer
 from pathlib import Path
 from storage.database import open_database, execute
 from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search, game_scan, reader_manifest
-from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress, backup_download, reader_images, recent_items, ui_assets, download_preflight, game_card_match
+from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress, backup_download, reader_images, recent_items, ui_assets, download_preflight, game_card_match, game_check as game_check_batch
 from core.classify import classify
 from core.game_sources import quick_game_request
 from core.game_tags import save_tags_request
@@ -793,26 +793,9 @@ def game_card(job):  # вкладка в браузере -> карточка и
     if meta.get('blocked'): raise RuntimeError('сайт показал проверку Cloudflare вместо страницы: откройте сайт в этом браузере, пройдите проверку и повторите')
     if not meta['name']: raise RuntimeError('на странице не нашлось названия игры (нужен вход на сайт?)')
     apply_meta(meta, gamelib.thread_key(url)); job['title'] = 'Карточка: ' + meta['name']; job['final'] = f"готово: «{meta['name']}», версия {meta['version'] or 'не указана'}"
-def game_check(job):  # проверка новых версий: по одной странице в вашем браузере, неторопливо
-    if not ext_online(): raise RuntimeError('расширение MediaHub не на связи: откройте браузер с установленным расширением')
-    ids = job.get('ids') or [r['id'] for r in sql("select * from items where kind='game'") if ginfo(r).get('meta', {}).get('thread')]
-    delay = float(os.environ.get('MEDIAHUB_GAME_DELAY', cfg.get('games_delay') or 8)); n = upd = 0; bad = []
-    for k, rid in enumerate(ids):
-        if job['cancel']: break
-        rows = sql('select * from items where id=?', (rid,))
-        if not rows: continue
-        r = rows[0]; i = ginfo(r); th = i.get('meta', {}).get('thread')
-        if not th: continue
-        job['title'] = f"Проверка игр {k + 1}/{len(ids)}: {r['title']}"; job['pct'] = int(k * 100 / max(1, len(ids)))
-        try:
-            meta = gamelib.parse_thread(fetch_html(th, job), th)
-            if meta.get('blocked'): raise RuntimeError('проверка Cloudflare: пройдите её в браузере')
-            if not meta['name']: raise RuntimeError('страница не открылась')
-            old = i.get('meta', {}).get('version', ''); apply_meta(meta, th); n += 1
-            if meta.get('version') and meta['version'] != old: upd += 1
-        except Exception as e: bad.append(f"{r['title']}: {str(e)[:60]}")
-        if k < len(ids) - 1 and delay: time.sleep(delay)
-    job['final'] = f'готово: проверено {n}, изменилась версия у {upd}' + (f'. Не удалось: {len(bad)} ({bad[0]})' if bad else '')
+def game_check(job):  # session checkpoints; continuation never retries an uncertain attempt
+    delay = float(os.environ.get('MEDIAHUB_GAME_DELAY', cfg.get('games_delay') or 8))
+    return game_check_batch.run(job, ext_online, sql, ginfo, fetch_html, gamelib.parse_thread, apply_meta, delay)
 def game_auto_loop():  # по расписанию (0 часов = выключено): проверяем игры с включённым «следить»
     while True:
         time.sleep(60)
@@ -921,7 +904,7 @@ class H(BaseHTTPRequestHandler):
         if ui_assets.allowed(p): return self.file(ASSETS / ('ui/index.html' if p == '/' else p.lstrip('/')))
         if p == '/api/jobs':
             now = time.time(); keys = ('id', 'url', 'kind', 'status', 'pct', 'title', 'eta', 'daily', 'start_at')
-            return self.js([dict({k: j.get(k) for k in keys}, speed=(j.get('speed') or 0) if now - j.get('_ts', now) < 8 else 0) for j in jobs.values()])
+            return self.js([dict({k: j.get(k) for k in keys}, game_check=game_check_batch.snapshot(j), speed=(j.get('speed') or 0) if now - j.get('_ts', now) < 8 else 0) for j in list(jobs.values())])
         if p.startswith('/ext/'): return self.ext_get(p, qs)
         if p == '/api/inbox': return self.js(inbox_state())
         if p == '/api/ext':
@@ -1002,6 +985,7 @@ class H(BaseHTTPRequestHandler):
             return self.js({'ok': bool(t and os.path.exists(t) and gamesweep.reveal(t))})
         if p == '/api/game/add': return self.js({'job': new_job(gamelib.thread_key(str(d.get('url') or '').strip()), 'gamecard', title=str(d.get('url'))[:120])}) if str(d.get('url') or '').startswith('http') else self.js({'error': 'нужна ссылка на тему игры'})
         if p == '/api/game/check':
+            if 'resume' in d: return self.js(*game_check_batch.resume(d, jobs, new_job))
             game_ids = [d['id']] if d.get('id') else None
             return self.js({'job': new_job('games:check', 'gamecheck', ids=game_ids, title='Проверка игр')})
         if p == '/api/game/zip-inspect': return self.js(*inspect_request(d, lambda item_id: next(iter(sql("select * from items where id=? and kind='game'", (item_id,))), None), gamesweep.parse_name, cfg['folder'], cfg.get('games_root', '')))

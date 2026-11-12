@@ -31,7 +31,8 @@
 - `core/media_outcome.py` — обнаружение ошибок и неполных результатов при скачивании медиаплейлистов.
 - `core/inbox_lock.py` — сериализация подтверждений «Входящих» в одном процессе без атомарности.
 - `storage/backup_download.py`, `storage/backup_restore.py`, `core/backup_download.py`, `ui/backup.js` — ограниченный снимок SQLite и проверка выбранной копии в памяти; восстановление не подключено.
-- `tests/test_game_check_batch.py` — синтетическая проверка 86 игр без сети и повторного запуска проверки.
+- `core/game_check.py`, `ui/game-check-resume.js` — сеансовый снимок проверки тем и явное продолжение не начатых элементов.
+- `tests/test_game_check_batch.py`, `tests/test_game_check_resume.py`, `tests/test_game_check_resume_http.py`, `tests/test_game_check_resume.mjs`, `scripts/browser_game_check_resume_smoke.py` — 86 синтетических игр, отмена, ошибки, конкуренция, HTTP и Edge.
 - `storage/local_game_search.py`, `storage/game_associations.py`, `core/local_game_match.py`, `core/game_card_match.py`, `ui/local-game-search.js` — ограниченный поиск возможных путей, снимок связанных карточек и подтверждаемая связь; ручная связь учитывается при сканировании.
 - `tests/test_local_game_match.py`, `tests/test_local_game_http.py`, `tests/test_local_game_search.mjs`, `scripts/browser_local_game_smoke.py` — временные данные, HTTP, UI и Edge для связывания.
 - `docs/rebuild-plan.md` — план объединения сценариев, дублирующихся экранов и безопасного перехода.
