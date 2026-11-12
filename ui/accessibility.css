@@ -35,6 +35,10 @@ html[data-contrast="high"] ::placeholder { color:var(--mute); opacity:1 }
 .update-preview p, .update-preview li { overflow-wrap:anywhere }
 .player-preview { margin-top:8px; color:var(--text); text-decoration:underline; overflow-wrap:anywhere }
 .library-playback-hint { margin:12px 0; overflow-wrap:anywhere }
+/* Fit the entire source image, with space around images of other aspect ratios. */
+.cv img, .gart img, .gtop .gmain img { object-fit:contain }
+.gart { aspect-ratio:4/3; background:var(--raise) }
+.gg { grid-template-columns:repeat(auto-fill, minmax(min(224px, 100%), 1fr)) }
 .extension-guide { grid-template-columns:1fr }
 .extension-guide label { display:block; margin:12px 0 4px }
 .extension-guide ol { padding-left:20px; margin:10px 0 }

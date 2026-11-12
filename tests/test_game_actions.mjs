@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
 const html = await readFile(new URL('../ui/index.html', import.meta.url), 'utf8');
+const css = await readFile(new URL('../ui/accessibility.css', import.meta.url), 'utf8');
 const start = html.indexOf('function fillPanel(x)');
 const end = html.indexOf('\nfunction openPanel(', start);
 assert.ok(start >= 0 && end > start);
@@ -33,6 +34,12 @@ test('update button explains whether it opens a thread or shows links', () => {
   assert.match(notDownloaded, /data-ga="links">Показать ссылки для скачивания/);
   assert.doesNotMatch(notDownloaded, /data-ga="links">Скачать</);
   assert.doesNotMatch(panel({ update: false, thread: '' }), /страницу обновления/);
+});
+
+test('game and library cover images fit without cropping and game cards grow responsively', () => {
+  assert.match(css, /\.cv img, \.gart img, \.gtop \.gmain img\s*\{\s*object-fit:contain/);
+  assert.match(css, /\.gg\s*\{[^}]*minmax\(min\(224px, 100%\), 1fr\)/);
+  assert.match(html, /href="\/ui\/accessibility\.css"/);
 });
 
 test('sort explanation is visible and linked to the select', () => {

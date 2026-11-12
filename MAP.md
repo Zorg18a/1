@@ -31,6 +31,7 @@
 - `core/media_outcome.py` — обнаружение ошибок и неполных результатов при скачивании медиаплейлистов.
 - `core/inbox_lock.py` — сериализация подтверждений «Входящих» в одном процессе без атомарности.
 - `storage/backup_download.py`, `storage/backup_restore.py`, `core/backup_download.py`, `ui/backup.js` — ограниченный снимок SQLite и проверка выбранной копии в памяти; восстановление не подключено.
+- `tests/test_game_check_batch.py` — синтетическая проверка 86 игр без сети и повторного запуска проверки.
 - `tests/test_backup_download.py`, `tests/test_backup_download_http.py`, `tests/test_backup_inspect.py`, `tests/test_backup_inspect_http.py`, `tests/test_backup.mjs`, `scripts/browser_backup_smoke.py` — временные базы, HTTP, интерфейс и Edge.
 - `ui/inbox-submit.js` — преобразование плана, защита от повторных кликов и обратная связь при неизвестном результате.
 - `tests/test_inbox_links.py`, `tests/test_inbox_submit.mjs` — временные HTTP-данные, одновременные запросы и UI-логика подтверждения.
