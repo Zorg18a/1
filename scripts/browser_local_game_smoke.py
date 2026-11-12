@@ -40,6 +40,7 @@ def run(root):
                 section.get_by_role('button', name='Открыть карточку Existing card, ID 2').click()
                 expect(panel).to_contain_text('Existing card')
                 assert app.sql('select path from items where id=1')[0]['path'] == ''
+                page.locator('#gclose').click()
                 app.sql('delete from items where id=2')
                 page.evaluate('loadGames()')
                 expect(card).to_have_count(1); card.click()
