@@ -43,6 +43,9 @@ class PinWindowsTests(unittest.TestCase):
                     with self.assertRaises(OSError): partial.unlink()
                     with self.assertRaises(OSError): partial.rename(self.root / 'moved.partial')
                     with self.assertRaises(OSError): os.replace(partial, self.root / 'replaced.partial')
+                    replacement = self.root / 'replacement.partial'; replacement.write_bytes(b'other')
+                    with self.assertRaises(OSError): os.replace(replacement, partial)
+                    self.assertEqual(replacement.read_bytes(), b'other')
                     os.link(partial, final)
                     with closing(sqlite3.connect(final)) as result:
                         self.assertEqual(result.execute('select value from demo').fetchone()[0], 'safe')

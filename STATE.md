@@ -11,7 +11,11 @@
   завершённой публикации или сохранности при отключении питания. К координатору и
   рабочему запуску функция не подключена; automatic backup-first всё ещё отсутствует.
 - Локально прошли 299 Python-тестов (16 пропущены, включая Windows-only pin), 127
-  Node-тестов, compileall, GameSweep 73/73 и `git diff --check`; Windows CI ожидается.
+  Node-тестов, compileall, GameSweep 73/73 и `git diff --check`. Первая Windows-проверка
+  [43262271310](https://github.com/Zorg18a/1/actions/runs/43262271310) обнаружила, что
+  дескриптор с доступом только к атрибутам не блокировал удаление. С правом чтения и
+  разрешённой записью [Windows CI 43262634131](https://github.com/Zorg18a/1/actions/runs/43262634131)
+  прошёл тесты pin, SQLite backup и hard link, весь Edge, сборку и smoke EXE.
 
 ## Экспериментальная защита каталога резервной копии
 
