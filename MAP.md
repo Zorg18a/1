@@ -32,6 +32,7 @@
 - `tests/test_many_links_http.py`, `scripts/browser_many_links_smoke.py` — 83 ссылки через API и Edge, выбор страниц и очередь без настоящих загрузок.
 - `core/inbox_lock.py` — сериализация подтверждений «Входящих» в одном процессе без атомарности.
 - `storage/backup_download.py`, `storage/backup_restore.py`, `core/backup_download.py`, `ui/backup.js` — ограниченный снимок SQLite и проверка выбранной копии в памяти; восстановление не подключено.
+- `storage/startup_rehearsal.py`, `scripts/check_startup_schema.py`, `tests/test_startup_rehearsal.py` — экспериментальная репетиция схемы на снимке в памяти и тесты без миграции исходной БД.
 - `core/game_check.py`, `ui/game-check-resume.js` — сеансовый снимок проверки тем и явное продолжение не начатых элементов.
 - `tests/test_game_check_batch.py`, `tests/test_game_check_resume.py`, `tests/test_game_check_resume_http.py`, `tests/test_game_check_resume.mjs`, `scripts/browser_game_check_resume_smoke.py` — 86 синтетических игр, отмена, ошибки, конкуренция, HTTP и Edge.
 - `storage/local_game_search.py`, `storage/extra_game_root.py`, `storage/game_associations.py`, `core/local_game_match.py`, `core/game_card_match.py`, `ui/local-game-search.js` — ограниченный поиск, снимок связей и подтверждаемая связь в настроенном или разовом корне.
