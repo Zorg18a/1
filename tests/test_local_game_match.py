@@ -8,7 +8,7 @@ import unittest
 
 from core import local_game_match
 from legacy import gamesweep
-from storage import local_game_search
+from storage import game_associations, local_game_search
 from storage.database import open_database
 
 
@@ -35,7 +35,7 @@ class LocalGameMatchTests(unittest.TestCase):
         return self.db.execute('select * from items where id=1').fetchone()
 
     def find(self):
-        data, status = local_game_match.find(self.row(), str(self.root), gamesweep.parse_name)
+        data, status = local_game_match.find(self.row(), str(self.root), gamesweep.parse_name, self.db, self.lock)
         self.assertEqual(status, 200, data)
         return data
 
@@ -99,6 +99,49 @@ class LocalGameMatchTests(unittest.TestCase):
         archive = next(c for c in result['candidates'] if c['kind'] == 'archive')
         self.assertNotIn('token', archive)
         self.assertFalse(any(c['path'] == str(self.root / 'Hidden Badge') for c in result['candidates']))
+
+    def test_ownership_snapshot_exposes_other_cards_without_link_tokens(self):
+        self.db.execute("insert into items(id,title,kind,path,url) values(2,'Другой вариант','game',?,'game:other')", (str(self.folder),))
+        self.db.commit()
+        candidate = self.find()['candidates'][0]
+        self.assertEqual(candidate['association'], {'state': 'other', 'cards': [{'id': 2, 'title': 'Другой вариант'}], 'extra': 0})
+        self.assertNotIn('token', candidate)
+        self.assertEqual(self.row()['path'], '')
+        self.db.execute('update items set path=? where id=1', (str(self.folder),)); self.db.commit()
+        candidate = self.find()['candidates'][0]
+        self.assertEqual(candidate['association']['state'], 'multiple')
+        self.assertEqual({c['id'] for c in candidate['association']['cards']}, {1, 2})
+        self.db.execute('delete from items where id=2'); self.db.commit()
+        self.assertEqual(self.find()['candidates'][0]['association']['state'], 'this')
+
+    def test_ownership_display_is_bounded_and_query_errors_are_unknown(self):
+        for i in range(2, 9):
+            self.db.execute('insert into items(id,title,kind,path,url) values(?,?,?,?,?)',
+                            (i, f'Card {i}', 'game', str(self.folder), f'game:{i}'))
+        self.db.commit()
+        candidate = self.find()['candidates'][0]
+        self.assertEqual(candidate['association']['state'], 'multiple')
+        self.assertEqual(len(candidate['association']['cards']), 5)
+        self.assertEqual(candidate['association']['extra'], 2)
+        self.db.execute('drop table items'); self.db.commit()
+        result = game_associations.associations(self.db, self.lock, [candidate], 1)
+        self.assertEqual(result[0]['state'], 'unknown')
+
+    def test_incomplete_ownership_never_offers_binding(self):
+        self.db.execute("insert into items(id,title,kind,path,url) values(2,'Other','game',?,'game:other')", (str(self.root / 'other'),))
+        self.db.commit()
+        with patch.object(game_associations, 'MAX_ROWS', 0):
+            candidate = self.find()['candidates'][0]
+        self.assertEqual(candidate['association']['state'], 'unknown')
+        self.assertNotIn('token', candidate)
+        self.db.execute("update items set info='uncommitted' where id=1")
+        try:
+            candidate = self.find()['candidates'][0]
+            self.assertEqual(candidate['association']['state'], 'unknown')
+            self.assertNotIn('token', candidate)
+            self.assertTrue(self.db.in_transaction)
+        finally:
+            self.db.rollback()
 
     def test_search_does_not_depend_on_direntry_stat_identity(self):
         # On Windows DirEntry.stat may omit identity fields used by os.stat.

@@ -7,6 +7,7 @@ import sqlite3
 import threading
 import time
 
+from storage.game_associations import associations, path_key
 from storage.incoming_downloads import stat_identity
 from storage.local_game_search import search
 from storage.save_discovery import _game_folder
@@ -26,7 +27,7 @@ def _snapshot(row):
 
 
 def _key(path):
-    return os.path.normcase(os.path.abspath(path))
+    return path_key(path)
 
 
 def _remember(candidate, root, snapshot):
@@ -42,14 +43,18 @@ def _remember(candidate, root, snapshot):
         return token
 
 
-def find(game, root, parse_name):
+def find(game, root, parse_name, db=None, lock=None):
     try:
         result = search(root, game['title'], parse_name)
         snapshot = _snapshot(game)
-        for candidate in result['candidates']:
-            if candidate['kind'] == 'folder' and not game['path']:
+        candidates = result['candidates']
+        ownership = associations(db, lock, candidates, game['id']) if db is not None and lock is not None else [
+            {'state': 'unknown', 'cards': [], 'extra': 0} for _ in candidates]
+        for candidate, association in zip(candidates, ownership):
+            if candidate['kind'] == 'folder' and not game['path'] and association['state'] == 'none':
                 candidate['token'] = _remember(dict(candidate), result['root'], snapshot)
             candidate.pop('identity', None)
+            candidate['association'] = association
         return result, 200
     except ValueError as exc:
         return {'error': str(exc)}, 400

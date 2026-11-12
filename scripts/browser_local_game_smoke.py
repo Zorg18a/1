@@ -19,6 +19,7 @@ def run(root):
     app.cfg['games_root'] = str(games)
     app.sql("insert into items(id,title,kind,path,url,info) values(1,'Hidden Badge','game','','game:hiddenbadge',?)",
             (json.dumps({'meta': {'thread': 'https://example.com/'}, 'note': 'keep'}),))
+    app.sql("insert into items(id,title,kind,path,url,info) values(2,'Existing card','game',?,'game:existing','{}')", (str(folder),))
     server = ThreadingHTTPServer(('127.0.0.1', 0), app.H)
     thread = threading.Thread(target=server.serve_forever); thread.start()
     try:
@@ -29,6 +30,18 @@ def run(root):
                 page.goto(f'http://127.0.0.1:{server.server_port}/', wait_until='domcontentloaded')
                 page.get_by_role('navigation').get_by_role('link', name='Игры').click()
                 card = page.locator('#ggrid .gcard')
+                expect(card).to_have_count(2); card.filter(has_text='Hidden Badge').click()
+                panel = page.locator('#gpanel')
+                section = panel.locator('.local-game-search')
+                section.get_by_role('button', name='Найти игру на диске').click()
+                expect(section).to_contain_text('Путь уже связан с другой карточкой')
+                expect(section).to_contain_text('Existing card')
+                expect(section.get_by_role('button', name='Связать с карточкой:', exact=False)).to_have_count(0)
+                section.get_by_role('button', name='Открыть карточку Existing card, ID 2').click()
+                expect(panel).to_contain_text('Existing card')
+                assert app.sql('select path from items where id=1')[0]['path'] == ''
+                app.sql('delete from items where id=2')
+                page.evaluate('loadGames()')
                 expect(card).to_have_count(1); card.click()
                 panel = page.locator('#gpanel')
                 expect(panel).to_contain_text('Не скачано')

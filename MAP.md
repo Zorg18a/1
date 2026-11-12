@@ -32,7 +32,7 @@
 - `core/inbox_lock.py` — сериализация подтверждений «Входящих» в одном процессе без атомарности.
 - `storage/backup_download.py`, `storage/backup_restore.py`, `core/backup_download.py`, `ui/backup.js` — ограниченный снимок SQLite и проверка выбранной копии в памяти; восстановление не подключено.
 - `tests/test_game_check_batch.py` — синтетическая проверка 86 игр без сети и повторного запуска проверки.
-- `storage/local_game_search.py`, `core/local_game_match.py`, `core/game_card_match.py`, `ui/local-game-search.js` — ограниченный поиск возможных путей и подтверждаемая связь с карточкой; ручная связь учитывается при сканировании.
+- `storage/local_game_search.py`, `storage/game_associations.py`, `core/local_game_match.py`, `core/game_card_match.py`, `ui/local-game-search.js` — ограниченный поиск возможных путей, снимок связанных карточек и подтверждаемая связь; ручная связь учитывается при сканировании.
 - `tests/test_local_game_match.py`, `tests/test_local_game_http.py`, `tests/test_local_game_search.mjs`, `scripts/browser_local_game_smoke.py` — временные данные, HTTP, UI и Edge для связывания.
 - `docs/rebuild-plan.md` — план объединения сценариев, дублирующихся экранов и безопасного перехода.
 - `core/local_http.py`, `tests/test_local_http.py` — локальный HTTP-сервер с увеличенной очередью соединений для параллельной загрузки модулей.

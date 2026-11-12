@@ -21,7 +21,7 @@ def preview_request(data, lookup, game_view, parse_name, download_folder, games_
         return {'error': 'Игра не найдена'}, 404
     if 'mode' in data:
         if data['mode'] == 'local_search':
-            return local_game_match.find(game, games_root, parse_name)
+            return local_game_match.find(game, games_root, parse_name, db, lock)
         if data['mode'] == 'local_link':
             if db is None or lock is None or cfg is None:
                 return {'error': 'Связывание недоступно'}, 503
