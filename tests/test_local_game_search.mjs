@@ -75,17 +75,24 @@ test('unknown association never offers binding even with a token', async () => {
   assert.equal(item.children.length, 2);
 });
 
-test('extra root is explicit, read-only and clears results when edited', async () => {
-  const calls = [];
-  const f = setup(async (url, opts) => { calls.push(JSON.parse(opts.body)); return ok(result); });
+test('extra root clears stale results and links only after explicit consent', async () => {
+  const calls = []; let allow = false;
+  const f = setup(async (url, opts) => {
+    const body = JSON.parse(opts.body); calls.push(body);
+    return ok(body.mode === 'local_link' ? { ok: 1, path: candidate.path } : result);
+  }, () => allow);
   f.input.value = '';
   await f.extraButton.click(); assert.equal(calls.length, 0); assert.match(f.status.textContent, /Укажите/);
   f.input.value = 'D:\\\\Games';
   await f.extraButton.click();
   assert.deepEqual(calls, [{ id: 1, mode: 'local_search_other', root: 'D:\\\\Games' }]);
-  assert.match(f.status.textContent, /только просмотр/);
-  assert.equal(f.results.children[0].children[0].children.length, 2); // No link even if a response contains a token.
+  assert.match(f.status.textContent, /не добавляется в автосканирование/);
+  await f.results.children[0].children[0].children[2].click(); assert.equal(calls.length, 1);
   f.input.handlers.input(); assert.equal(f.results.children.length, 0);
+  await f.extraButton.click(); allow = true;
+  await f.results.children[0].children[0].children[2].click();
+  assert.deepEqual(calls[2], { id: 1, mode: 'local_link', token: 'secret' });
+  assert.equal(f.win.reloaded, true);
 });
 
 test('stale association and malformed result show error and permit a new search', async () => {

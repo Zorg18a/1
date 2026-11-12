@@ -28,7 +28,11 @@ def preview_request(data, lookup, game_view, parse_name, download_folder, games_
                 root = validate_root(data.get('root'))
             except ValueError as exc:
                 return {'error': str(exc)}, 400
-            return local_game_match.find(game, root, parse_name, db, lock, allow_link=False)
+            setting = (cfg.get('games_root') or '') if isinstance(cfg, dict) else None
+            if setting is not None and not isinstance(setting, str):
+                return {'error': 'Неизвестный формат корня игр'}, 400
+            return local_game_match.find(game, root, parse_name, db, lock,
+                                         allow_link=setting is not None, extra_config=setting)
         if data['mode'] == 'local_link':
             if db is None or lock is None or cfg is None:
                 return {'error': 'Связывание недоступно'}, 503

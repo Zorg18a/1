@@ -1,6 +1,7 @@
 """Translate a read-only save-location search into API responses."""
 from storage.save_discovery import DiscoveryBusy, discover_saves
 from storage.save_inventory import inventory_saves
+from storage.game_save_root import save_root
 
 
 def save_preview_request(data, game, game_view, games_root):
@@ -8,8 +9,9 @@ def save_preview_request(data, game, game_view, games_root):
         return {'error': 'Поиск сохранений принимает только id игры и режим'}, 400
     try:
         view = game_view(game)
-        result = (inventory_saves(games_root, view['path']) if data['mode'] == 'save_inventory'
-                  else discover_saves(games_root, view['path']))
+        root = save_root(game, games_root)
+        result = (inventory_saves(root, view['path']) if data['mode'] == 'save_inventory'
+                  else discover_saves(root, view['path']))
     except DiscoveryBusy as exc:
         return {'error': str(exc)}, 409
     except ValueError as exc:

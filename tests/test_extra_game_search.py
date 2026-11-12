@@ -1,4 +1,4 @@
-"""One-shot extra-root searches are bounded, read-only and never issue link tokens."""
+"""One-shot extra-root searches and explicitly confirmed links on temporary data."""
 import json
 import os
 from pathlib import Path
@@ -24,6 +24,7 @@ class ExtraGameSearchTests(unittest.TestCase):
         self.db.execute("insert into items(id,title,kind,path,url,info) values(1,'Hidden Badge','game','','game:hiddenbadge','{}')")
         self.db.commit()
         self.row = self.db.execute('select * from items where id=1').fetchone()
+        self.cfg = {'games_root': str(Path(self.tmp.name) / 'configured')}
 
     def tearDown(self):
         self.db.close(); self.tmp.cleanup()
@@ -31,19 +32,44 @@ class ExtraGameSearchTests(unittest.TestCase):
     def request(self, root):
         return update_preview.preview_request({'id': 1, 'mode': 'local_search_other', 'root': root},
             lambda i: self.row if i == 1 else None, lambda row: {}, gamesweep.parse_name,
-            '', str(Path(self.tmp.name) / 'configured'), self.db, self.lock, {'games_root': str(self.root)})
+            '', self.cfg['games_root'], self.db, self.lock, self.cfg)
 
-    def test_extra_root_finds_but_never_offers_a_link_or_changes_data(self):
+    def test_extra_root_link_requires_explicit_token_and_preserves_files(self):
         data, status = self.request(str(self.root))
         self.assertEqual(status, 200, data)
         candidate = next(c for c in data['candidates'] if c['path'] == str(self.folder))
         self.assertEqual(candidate['association']['state'], 'none')
-        self.assertNotIn('token', candidate)
         self.assertNotIn('identity', candidate)
-        self.assertEqual(self.db.execute('select path,info from items where id=1').fetchone()['path'], '')
+        self.assertEqual(self.db.execute('select path from items where id=1').fetchone()['path'], '')
+        self.assertEqual(local_game_match.link({'id': 1, 'token': 'fake'}, self.db, self.lock, self.cfg)[1], 409)
+        result, status = local_game_match.link({'id': 1, 'token': candidate['token']}, self.db, self.lock, self.cfg)
+        self.assertEqual((status, result['path']), (200, str(self.folder)))
+        info = json.loads(self.db.execute('select info from items where id=1').fetchone()['info'])
+        self.assertEqual(info['mediahub_extra_game_root_v1'], str(self.root))
+        self.assertEqual(info['mediahub_manual_game_path_v1'], str(self.folder))
         self.assertEqual((self.folder / 'saves' / 'slot.sav').read_bytes(), b'keep')
-        self.assertEqual(local_game_match.link({'id': 1, 'token': 'fake'}, self.db, self.lock,
-                                              {'games_root': str(self.root)})[1], 409)
+        self.assertEqual(local_game_match.link({'id': 1, 'token': candidate['token']}, self.db, self.lock, self.cfg)[1], 409)
+
+    def test_stale_root_card_folder_and_new_owner_cancel_without_mutation(self):
+        def token(): return self.request(str(self.root))[0]['candidates'][0]['token']
+        t = token(); old_root = self.cfg['games_root']; self.cfg['games_root'] = 'changed'
+        self.assertEqual(local_game_match.link({'id':1, 'token':t}, self.db, self.lock, self.cfg)[1], 409)
+        self.cfg['games_root'] = old_root
+        t = token(); self.db.execute("update items set title='changed' where id=1"); self.db.commit()
+        self.assertEqual(local_game_match.link({'id':1, 'token':t}, self.db, self.lock, self.cfg)[1], 409)
+        self.db.execute("update items set title='Hidden Badge' where id=1"); self.db.commit()
+        t = token(); (self.folder / 'added').write_bytes(b'changed')
+        self.assertEqual(local_game_match.link({'id':1, 'token':t}, self.db, self.lock, self.cfg)[1], 409)
+        t = token(); self.db.execute("insert into items(id,title,kind,path,url) values(2,'Other','game',?,'game:other')", (str(self.folder),)); self.db.commit()
+        self.assertEqual(local_game_match.link({'id':1, 'token':t}, self.db, self.lock, self.cfg)[1], 409)
+        self.assertEqual(self.db.execute('select path from items where id=1').fetchone()['path'], '')
+        self.assertEqual((self.folder / 'saves' / 'slot.sav').read_bytes(), b'keep')
+
+    def test_search_without_context_does_not_issue_confirmation(self):
+        result, status = update_preview.preview_request({'id': 1, 'mode': 'local_search_other', 'root': str(self.root)},
+            lambda _: self.row, lambda _: {}, gamesweep.parse_name, '', '', self.db, self.lock)
+        self.assertEqual(status, 200)
+        self.assertNotIn('token', result['candidates'][0])
 
     def test_other_card_and_limits_are_shown(self):
         self.db.execute("insert into items(id,title,kind,path,url) values(2,'Other','game',?,'game:other')", (str(self.folder),))

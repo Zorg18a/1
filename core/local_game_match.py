@@ -30,7 +30,7 @@ def _key(path):
     return path_key(path)
 
 
-def _remember(candidate, root, snapshot):
+def _remember(candidate, root, snapshot, root_context):
     now = time.monotonic()
     with _LOCK:
         for key in list(_TOKENS):
@@ -39,11 +39,11 @@ def _remember(candidate, root, snapshot):
         if len(_TOKENS) >= _MAX_TOKENS:
             return None
         token = secrets.token_urlsafe(24)
-        _TOKENS[token] = (now + _TTL, candidate, root, snapshot)
+        _TOKENS[token] = (now + _TTL, candidate, root, snapshot, root_context)
         return token
 
 
-def find(game, root, parse_name, db=None, lock=None, *, allow_link=True):
+def find(game, root, parse_name, db=None, lock=None, *, allow_link=True, extra_config=None):
     try:
         result = search(root, game['title'], parse_name)
         snapshot = _snapshot(game)
@@ -52,7 +52,8 @@ def find(game, root, parse_name, db=None, lock=None, *, allow_link=True):
             {'state': 'unknown', 'cards': [], 'extra': 0} for _ in candidates]
         for candidate, association in zip(candidates, ownership):
             if allow_link and candidate['kind'] == 'folder' and not game['path'] and association['state'] == 'none':
-                candidate['token'] = _remember(dict(candidate), result['root'], snapshot)
+                context = ('extra', extra_config) if extra_config is not None else ('configured', result['root'])
+                candidate['token'] = _remember(dict(candidate), result['root'], snapshot, context)
             candidate.pop('identity', None)
             candidate['association'] = association
         return result, 200
@@ -64,6 +65,15 @@ def find(game, root, parse_name, db=None, lock=None, *, allow_link=True):
         return {'error': 'Не удалось открыть папку игр'}, 400
 
 
+def _check_root_context(context, cfg):
+    mode, expected = context
+    current = cfg.get('games_root') or ''
+    if not isinstance(current, str):
+        raise ValueError('Неизвестный формат корня игр; выполните поиск заново.')
+    if (mode == 'configured' and (not current or _key(current) != _key(expected))) or (mode == 'extra' and current != expected):
+        raise ValueError('Корень игр изменился. Выполните поиск заново.')
+
+
 def link(data, db, lock, cfg):
     token = data.get('token')
     if not isinstance(token, str) or len(token) > 100:
@@ -72,10 +82,9 @@ def link(data, db, lock, cfg):
         saved = _TOKENS.pop(token, None)
     if not saved or saved[0] <= time.monotonic() or saved[3][0] != data['id']:
         return {'error': 'Результат поиска устарел. Выполните поиск заново.'}, 409
-    _, candidate, root, snapshot = saved
+    _, candidate, root, snapshot, context = saved
     try:
-        if not cfg.get('games_root') or _key(root) != _key(cfg['games_root']):
-            raise ValueError('Корень игр изменился. Выполните поиск заново.')
+        _check_root_context(context, cfg)
         folder = _game_folder(root, candidate['path'])
         if stat_identity(os.stat(folder, follow_symlinks=False)) != candidate['identity']:
             raise ValueError('Папка изменилась. Выполните поиск заново.')
@@ -87,12 +96,14 @@ def link(data, db, lock, cfg):
                 row = db.execute("select * from items where id=? and kind='game'", (data['id'],)).fetchone()
                 if row is None or _snapshot(row) != snapshot or row['path']:
                     raise ValueError('Карточка изменилась или уже связана с путём. Выполните поиск заново.')
-                if not cfg.get('games_root') or _key(root) != _key(cfg['games_root']):
-                    raise ValueError('Корень игр изменился. Выполните поиск заново.')
+                _check_root_context(context, cfg)
                 if stat_identity(os.stat(_game_folder(root, str(folder)), follow_symlinks=False)) != candidate['identity']:
                     raise ValueError('Папка изменилась. Выполните поиск заново.')
-                for other in db.execute("select id,path from items where kind='game' and id!=?", (data['id'],)):
-                    if other['path'] and _key(other['path']) == _key(str(folder)):
+                owners = db.execute("select id,path from items where kind='game' and id!=? and path is not null and path!=''", (data['id'],))
+                for number, other in enumerate(owners, 1):
+                    if number > 50000 or not isinstance(other['path'], str):
+                        raise ValueError('Не удалось полностью проверить связи папки; изменения отменены.')
+                    if _key(other['path']) == _key(str(folder)):
                         raise ValueError('Эта папка уже связана с другой карточкой. Автоматическое объединение отменено.')
                 try:
                     info = json.loads(row['info'] or '{}')
@@ -106,8 +117,12 @@ def link(data, db, lock, cfg):
                 marker = info.get('mediahub_manual_game_path_v1')
                 if marker and (not isinstance(marker, str) or _key(marker) != _key(str(folder))):
                     raise ValueError('В карточке указан другой вручную выбранный путь; изменения отменены.')
+                if 'mediahub_extra_game_root_v1' in info:
+                    raise ValueError('В карточке уже указан дополнительный корень; изменения отменены.')
                 info['inst'] = dict(old, path=str(folder), root=root, version='', versions=1, old=0)
                 info['mediahub_manual_game_path_v1'] = str(folder)
+                if context[0] == 'extra':
+                    info['mediahub_extra_game_root_v1'] = root
                 info['update'] = False
                 db.execute('update items set path=?,info=? where id=?',
                            (str(folder), json.dumps(info, ensure_ascii=False), data['id']))

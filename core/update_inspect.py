@@ -7,6 +7,7 @@ from core.zip_rules import ArchiveRejected
 from storage.incoming_downloads import incoming_folder, list_archives
 from storage.zip_inspection import ArchiveChanged, ensure_identity, inspect_zip
 from storage.save_discovery import DiscoveryBusy, discover_saves
+from storage.game_save_root import save_root
 from storage.zip_content import VerificationBusy
 
 DISPLAY_PATH_LIMIT = 200
@@ -51,7 +52,7 @@ def inspect_request(data, lookup, parse_name, download_folder, games_root):
             result['paths_truncated'] = len(entries) > DISPLAY_PATH_LIMIT
         if compare_saves:
             entries = result.pop('_entries')
-            preview = discover_saves(games_root, game['path'])
+            preview = discover_saves(save_root(game, games_root), game['path'])
             ensure_identity(folder / name, identity)
             result['save_comparison'] = compare_paths(preview, entries)
     except (VerificationBusy, DiscoveryBusy) as exc:

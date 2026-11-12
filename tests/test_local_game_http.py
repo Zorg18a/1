@@ -38,7 +38,7 @@ try:
     status, result = post(extra_payload, {'X-MH':'1'})
     assert status == 200 and result['root'] == str(extra), (status, result)
     found = next(c for c in result['candidates'] if c['path'] == str(other))
-    assert 'token' not in found and found['association']['state'] == 'none'
+    assert isinstance(found.get('token'), str) and found['association']['state'] == 'none'
     assert post({'id':1,'mode':'local_search_other','root':'relative'}, {'X-MH':'1'})[0] == 400
     assert app.sql('select path from items where id=1')[0]['path'] == ''
     assert (other / 'file.txt').read_text('utf-8') == 'keep'

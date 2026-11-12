@@ -15,7 +15,7 @@ export function setupLocalGameSearch({ win = window, doc = document, fetcher = f
     const input = doc.createElement('input'); input.type = 'text'; input.placeholder = 'D:\\Игры'; input.maxLength = 2048;
     label.append(input);
     const extraHelp = doc.createElement('p'); extraHelp.className = 'mu';
-    extraHelp.textContent = 'Укажите папку, содержащую игры: сама выбранная папка не сравнивается с названием. Результаты только показываются, без привязки. Путь не сохраняется и автосканирование не меняется. На медленных дисках системный вызов может задержаться.';
+    extraHelp.textContent = 'Укажите папку, содержащую игры: сама выбранная папка не сравнивается с названием. Найденную папку можно связать после подтверждения. Настройки и автосканирование не меняются; на медленных дисках системный вызов может задержаться.';
     const extraButton = doc.createElement('button'); extraButton.type = 'button'; extraButton.className = 'btn'; extraButton.textContent = 'Искать в дополнительной папке';
     extra.append(label, extraHelp, extraButton);
     section.append(heading, help, button, status, results, extra);
@@ -45,7 +45,7 @@ export function setupLocalGameSearch({ win = window, doc = document, fetcher = f
         status.textContent = `Корень: ${data.root}. Проверено записей: ${data.scanned}. Найдено: ${candidates.length}.` +
           (data.incomplete ? ' Поиск неполный: проверьте структуру папок и пропущенные элементы.' : '') +
           ' Это только возможные совпадения; отсутствие результата не доказывает отсутствия игры.' +
-          (other ? ' Дополнительная папка: только просмотр, привязка недоступна.' : '') +
+          (other ? ' Дополнительная папка не добавляется в автосканирование.' : '') +
           (candidates.some(c => c?.kind === 'folder' && c.token === null) ? ' Для части папок сейчас нельзя создать подтверждение; повторите поиск позже.' : '');
         const list = doc.createElement('ul');
         for (const candidate of candidates) {
@@ -79,12 +79,12 @@ export function setupLocalGameSearch({ win = window, doc = document, fetcher = f
             const more = doc.createElement('p'); more.textContent = `Других связанных карточек: ${association.extra}.`;
             item.append(more);
           }
-          if (!other && candidate.kind === 'folder' && association.state === 'none' && typeof candidate.token === 'string') {
+          if (candidate.kind === 'folder' && association.state === 'none' && typeof candidate.token === 'string') {
             const choose = doc.createElement('button'); choose.type = 'button'; choose.className = 'btn';
             choose.textContent = 'Связать с этой карточкой';
             choose.setAttribute('aria-label', `Связать с карточкой: ${candidate.path}`);
             choose.addEventListener('click', async () => {
-              if (busy || !win.confirm(`Связать карточку «${game.title}» с папкой?\n\n${candidate.path}\n\nПроверьте, что это нужная игра. Файлы не перемещаются и не удаляются.`)) return;
+              if (busy || !win.confirm(`Связать карточку «${game.title}» с папкой?\n\n${candidate.path}\n\nПроверьте, что это нужная игра. Файлы не перемещаются и не удаляются.${other ? '\nДополнительная папка не добавляется в автоматическое сканирование.' : ''}`)) return;
               busy = true; button.disabled = true; extraButton.disabled = true; input.disabled = true; choose.disabled = true; status.textContent = 'Сохраняю связь…';
               try {
                 const saved = await request({ mode: 'local_link', token: candidate.token });
