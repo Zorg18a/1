@@ -35,7 +35,7 @@
 - `storage/startup_rehearsal.py`, `scripts/check_startup_schema.py`, `tests/test_startup_rehearsal.py` — экспериментальная репетиция схемы на снимке в памяти и тесты без миграции исходной БД.
 - `storage/legacy_startup_schema.py`, `tests/test_legacy_startup_schema.py` — изолированная схема действующего запуска и тест симуляции backup-first до импорта приложения.
 - `storage/guarded_read.py`, `storage/guarded_migration.py`, `tests/test_guarded_migration.py` — экспериментальная защита цепочки каталогов для миграции на Windows NTFS; к запуску не подключена.
-- `storage/windows_backup_pin.py`, `tests/test_windows_backup_pin.py` — экспериментальная привязка открытого файла к имени на Windows NTFS; запись файла разрешена, к миграции не подключено.
+- `storage/windows_backup_pin.py`, `storage/guarded_snapshot.py`, `tests/test_windows_backup_pin.py`, `tests/test_guarded_snapshot.py` — экспериментальное удержание имени и создание снимка на Windows NTFS; запись файла разрешена, к запуску не подключено.
 - `core/game_check.py`, `ui/game-check-resume.js` — сеансовый снимок проверки тем и явное продолжение не начатых элементов.
 - `tests/test_game_check_batch.py`, `tests/test_game_check_resume.py`, `tests/test_game_check_resume_http.py`, `tests/test_game_check_resume.mjs`, `scripts/browser_game_check_resume_smoke.py` — 86 синтетических игр, отмена, ошибки, конкуренция, HTTP и Edge.
 - `storage/local_game_search.py`, `storage/extra_game_root.py`, `storage/game_associations.py`, `core/local_game_match.py`, `core/game_card_match.py`, `ui/local-game-search.js` — ограниченный поиск, снимок связей и подтверждаемая связь в настроенном или разовом корне.

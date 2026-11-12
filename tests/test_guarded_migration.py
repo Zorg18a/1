@@ -1,5 +1,5 @@
 """Experimental migration directory guard, only on temporary data."""
-from contextlib import closing
+from contextlib import closing, nullcontext
 import os
 from pathlib import Path
 import sqlite3
@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from storage import guarded_migration, guarded_read, legacy_startup_schema, playback_migration
+from storage import guarded_migration, guarded_read, guarded_snapshot, legacy_startup_schema, playback_migration, windows_backup_pin
 
 
 class GuardedMigrationTests(unittest.TestCase):
@@ -46,11 +46,29 @@ class GuardedMigrationTests(unittest.TestCase):
             self.assertEqual(state, ['held'])
             raise playback_migration.BackupError('simulated failure')
         with patch.object(guarded_read, 'open_guarded_directory', return_value=Guard()), \
-             patch.object(playback_migration, '_copy_snapshot', side_effect=copy):
+             patch.object(guarded_snapshot, 'copy_snapshot', side_effect=copy):
             with self.assertRaises(playback_migration.BackupError): self.migrate()
         self.assertEqual(state, ['held', 'released'])
         self.assertFalse(self.db.in_transaction)
         self.assertNotIn('thumb', [row['name'] for row in self.db.execute('pragma table_info(items)')])
+
+    def test_failed_schema_rolls_back_but_keeps_published_snapshot_and_partial(self):
+        before = list(self.db.iterdump())
+        def fail(db):
+            db.execute('create table temporary_change(x)')
+            raise sqlite3.DatabaseError('simulated DDL failure')
+        with patch.object(guarded_read, 'open_guarded_directory', return_value=nullcontext()), \
+             patch.object(windows_backup_pin, 'pin_created_file', return_value=nullcontext()):
+            with self.assertRaises(sqlite3.DatabaseError):
+                guarded_migration.migrate(self.db, self.backups, initialize=fail,
+                                            needs=legacy_startup_schema.requires_migration)
+        self.assertEqual(list(self.db.iterdump()), before)
+        snapshots = list(self.backups.glob('*.db'))
+        partials = list(self.backups.glob('*.partial'))
+        self.assertEqual((len(snapshots), len(partials)), (1, 1))
+        self.assertTrue(os.path.samefile(snapshots[0], partials[0]))
+        with closing(sqlite3.connect(snapshots[0])) as copy:
+            self.assertEqual(copy.execute('select page from progress').fetchone()[0], 83)
 
     @unittest.skipIf(os.name == 'nt', 'Windows supports guarded directories')
     def test_unsupported_platform_fails_closed(self):
@@ -59,13 +77,18 @@ class GuardedMigrationTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == 'nt', 'requires Windows NTFS')
     def test_snapshot_while_directory_is_guarded_and_release_afterwards(self):
-        original = playback_migration._copy_snapshot
-        def check_held(source, directory, timeout):
+        original = playback_migration._write_snapshot
+        def check_held(source, partial, timeout):
             with self.assertRaises(OSError): self.backups.rename(self.root / 'moved')
             with self.assertRaises(OSError): self.root.rename(self.root.with_name(self.root.name + '-moved'))
-            return original(source, directory, timeout)
-        with patch.object(playback_migration, '_copy_snapshot', side_effect=check_held):
-            snapshot = self.migrate()
+            with self.assertRaises(OSError): partial.unlink()
+            with self.assertRaises(OSError): partial.rename(partial.with_suffix('.else'))
+            return original(source, partial, timeout)
+        with patch.object(playback_migration, '_write_snapshot', side_effect=check_held):
+            result = self.migrate()
+        snapshot = result.snapshot
+        self.assertTrue(result.retained_partial.is_file())
+        self.assertTrue(os.path.samefile(snapshot, result.retained_partial))
         with closing(sqlite3.connect(snapshot)) as before:
             self.assertEqual(before.execute('select page from progress').fetchone()[0], 83)
             self.assertNotIn('thumb', [r[1] for r in before.execute('pragma table_info(items)')])
@@ -73,6 +96,23 @@ class GuardedMigrationTests(unittest.TestCase):
         self.assertIsNone(self.migrate())
         moved = self.root / 'moved'; self.backups.rename(moved)
         self.assertTrue((moved / snapshot.name).is_file())
+
+    @unittest.skipUnless(os.name == 'nt', 'requires Windows NTFS')
+    def test_wal_and_publish_failure_leave_database_unchanged(self):
+        self.db.execute('pragma journal_mode=wal')
+        self.db.execute('pragma wal_autocheckpoint=0')
+        self.db.execute("update progress set page=99 where slug='old'"); self.db.commit()
+        original = list(self.db.iterdump())
+        with patch.object(guarded_snapshot.os, 'link', side_effect=OSError('simulated publish failure')):
+            with self.assertRaises(playback_migration.BackupError): self.migrate()
+        self.assertEqual(list(self.db.iterdump()), original)
+        self.assertFalse(self.db.in_transaction)
+        self.assertFalse(list(self.backups.glob('*.db')))
+        self.assertEqual(len(list(self.backups.glob('*.partial'))), 1)
+        result = self.migrate()
+        with closing(sqlite3.connect(result.snapshot)) as snapshot:
+            self.assertEqual(snapshot.execute('select page from progress').fetchone()[0], 99)
+            self.assertEqual(snapshot.execute('pragma journal_mode').fetchone()[0], 'delete')
 
     @unittest.skipUnless(os.name == 'nt', 'requires Windows NTFS')
     def test_access_denied_releases_directory_handles_and_keeps_database(self):

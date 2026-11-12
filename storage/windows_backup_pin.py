@@ -2,7 +2,7 @@
 
 The caller must keep the guarded directory and original fd open through pinning.
 The pin permits writes and does not validate ACLs, SQLite, sidecars, or durability.
-It is not connected to the application or the backup coordinator.
+It is used only by the isolated guarded snapshot path, not the application.
 """
 import os
 

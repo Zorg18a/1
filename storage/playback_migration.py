@@ -23,6 +23,24 @@ def _verify_snapshot(target):
         raise BackupError('Резервная копия не прошла integrity_check')
 
 
+def _write_snapshot(source_path, partial, timeout):
+    deadline = time.monotonic() + timeout
+
+    def progress(status, remaining, total):
+        if time.monotonic() > deadline:
+            raise BackupError('Превышено время создания резервной копии')
+
+    uri = source_path.resolve().as_uri() + '?mode=ro'
+    with closing(sqlite3.connect(uri, uri=True, timeout=min(timeout, 1))) as source:
+        with closing(sqlite3.connect(partial, timeout=min(timeout, 1))) as target:
+            source.backup(target, pages=128, progress=progress, sleep=0.05)
+            if target.execute('pragma journal_mode=delete').fetchone()[0].lower() != 'delete':
+                raise BackupError('Не удалось создать автономную резервную копию')
+            _verify_snapshot(target)
+    with partial.open('r+b') as f:
+        os.fsync(f.fileno())
+
+
 def _copy_snapshot(source_path, directory, timeout):
     # Exclusive creation prevents overwriting an existing backup. Failed attempts
     # remain visibly partial for inspection; only our own temporary link is removed.
@@ -33,22 +51,8 @@ def _copy_snapshot(source_path, directory, timeout):
         raise BackupError('Не удалось создать файл резервной копии; миграция отменена') from exc
     partial = Path(name)
     final = partial.with_suffix('.db')
-    deadline = time.monotonic() + timeout
-
-    def progress(status, remaining, total):
-        if time.monotonic() > deadline:
-            raise BackupError('Превышено время создания резервной копии')
-
     try:
-        uri = source_path.resolve().as_uri() + '?mode=ro'
-        with closing(sqlite3.connect(uri, uri=True, timeout=min(timeout, 1))) as source:
-            with closing(sqlite3.connect(partial, timeout=min(timeout, 1))) as target:
-                source.backup(target, pages=128, progress=progress, sleep=0.05)
-                if target.execute('pragma journal_mode=delete').fetchone()[0].lower() != 'delete':
-                    raise BackupError('Не удалось создать автономную резервную копию')
-                _verify_snapshot(target)
-        with partial.open('r+b') as f:
-            os.fsync(f.fileno())
+        _write_snapshot(source_path, partial, timeout)
         # link is atomic and fails if final exists; unlike rename it cannot replace it.
         os.link(partial, final)
         partial.unlink()
@@ -58,7 +62,7 @@ def _copy_snapshot(source_path, directory, timeout):
                           f'Незавершённый файл: {partial}') from exc
 
 
-def migrate(db, backup_dir, timeout=30.0, *, initialize=None, needs=None):
+def migrate(db, backup_dir, timeout=30.0, *, initialize=None, needs=None, _copy=None):
     """Snapshot then migrate atomically; returns the snapshot path, or None if current.
 
     Caller must have exclusive use of this connection and must not hold a transaction.
@@ -83,7 +87,7 @@ def migrate(db, backup_dir, timeout=30.0, *, initialize=None, needs=None):
         if needs is not None and not needs(db):
             db.commit()
             return None
-        snapshot = _copy_snapshot(Path(main), directory, timeout)
+        snapshot = (_copy or _copy_snapshot)(Path(main), directory, timeout)
         (initialize or playback.initialize)(db)
         if needs is not None and needs(db):
             raise sqlite3.DatabaseError('Миграция не завершила схему')
