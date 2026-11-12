@@ -31,8 +31,10 @@ if os.name == 'nt':
     _nt.RtlNtStatusToDosError.restype = wintypes.ULONG
 
 
-def open_relative(parent, name, *, directory):
-    """Open a single component relative to an existing directory handle."""
+def open_relative(parent, name, *, directory, shared_write=False):
+    """Open one component; shared_write pins a file name but permits data writes."""
+    if shared_write and directory:
+        raise ValueError('shared_write is only supported for files')
     if (not isinstance(name, str) or not name or name in ('.', '..') or
             any(c in name for c in ('/', '\\', '\x00'))):
         raise ValueError('Expected one path component')
@@ -46,8 +48,8 @@ def open_relative(parent, name, *, directory):
     attributes = _ObjectAttributes(ctypes.sizeof(_ObjectAttributes), parent, ctypes.pointer(text),
                                    0x40, None, None)  # OBJ_CASE_INSENSITIVE
     status_block, handle = _IoStatus(), wintypes.HANDLE()
-    access = (0x80 | 0x20 if directory else 0x80000000) | 0x100000  # attributes/traverse or read; synchronize
-    share = 1 | (2 if directory else 0)  # no delete; files also deny writers
+    access = (0x80 | 0x20 if directory else 0x80 if shared_write else 0x80000000) | 0x100000
+    share = 1 | (2 if directory or shared_write else 0)  # no delete; shared_write permits writers
     options = 0x00200000 | 0x20 | (0x1 if directory else 0x40)  # reparse point, synchronous, type
     status = _nt.NtCreateFile(ctypes.byref(handle), access, ctypes.byref(attributes),
                               ctypes.byref(status_block), None, 0, share, 1, options, None, 0)
