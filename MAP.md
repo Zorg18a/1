@@ -29,6 +29,7 @@
 - `tests/test_recent_items.py`, `tests/test_recent.mjs`, `scripts/browser_recent_smoke.py` — метаданные, история, ограничения и проверка в Edge на временных данных.
 - `core/byte_range.py` — правила одиночного HTTP Byte Range и ответов на неразрешимые диапазоны.
 - `core/media_outcome.py` — обнаружение ошибок и неполных результатов при скачивании медиаплейлистов.
+- `tests/test_many_links_http.py`, `scripts/browser_many_links_smoke.py` — 83 ссылки через API и Edge, выбор страниц и очередь без настоящих загрузок.
 - `core/inbox_lock.py` — сериализация подтверждений «Входящих» в одном процессе без атомарности.
 - `storage/backup_download.py`, `storage/backup_restore.py`, `core/backup_download.py`, `ui/backup.js` — ограниченный снимок SQLite и проверка выбранной копии в памяти; восстановление не подключено.
 - `core/game_check.py`, `ui/game-check-resume.js` — сеансовый снимок проверки тем и явное продолжение не начатых элементов.

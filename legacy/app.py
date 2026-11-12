@@ -955,9 +955,8 @@ class H(BaseHTTPRequestHandler):
         d = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or b'{}'); p = self.path
         if p == '/api/add':
             urls = list(dict.fromkeys(x.strip() for x in d['urls'].splitlines() if x.strip().startswith('http')))
-            if d['kind'] == 'site' and d.get('sel'): urls = [d['sel'][0] if not urls else urls[0]]
-            for u in urls:
-                enqueue({'sel': d.get('sel') or [], 'maxp': int(d.get('maxp') or cfg['maxp']), 'videos': bool(d.get('videos', cfg['videos'])), 'id': next(ids), 'url': u, 'kind': (manga_kind() if d['kind'] == 'mangaurl' else d['kind']), 'res': d.get('res') or cfg['res'], 'afmt': d.get('afmt') or cfg['afmt'], 'depth': int(d.get('depth', cfg['depth'])),
+            for index, u in enumerate(urls):
+                enqueue({'sel': (d.get('sel') or []) if d['kind'] == 'site' and index == 0 else [], 'maxp': int(d.get('maxp') or cfg['maxp']), 'videos': bool(d.get('videos', cfg['videos'])), 'id': next(ids), 'url': u, 'kind': (manga_kind() if d['kind'] == 'mangaurl' else d['kind']), 'res': d.get('res') or cfg['res'], 'afmt': d.get('afmt') or cfg['afmt'], 'depth': int(d.get('depth', cfg['depth'])),
                          'topic': d.get('topic', '').strip(), 'subs': d['subs'] if 'subs' in d else (cfg['subs_langs'] if cfg['subs_on'] else ''), 'thumbs': bool(d.get('thumbs', cfg['thumbs'])), 'first': int(d.get('first') or 0), 'last': int(d.get('last') or 0), 'start_at': float(d.get('start_at') or 0),
                          'daily': bool(d.get('daily')), 'status': 'в очереди', 'pct': 0, 'title': u, 'speed': 0, 'eta': 0, 'cancel': False})
             return self.js({'added': len(urls)})

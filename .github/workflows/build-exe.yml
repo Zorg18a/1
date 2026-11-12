@@ -60,6 +60,10 @@ jobs:
         env:
           PYTHONUTF8: '1'
         run: python -m scripts.browser_game_check_resume_smoke
+      - name: Check many pasted links in headless Edge
+        env:
+          PYTHONUTF8: '1'
+        run: python -m scripts.browser_many_links_smoke
       - name: Check local game association in headless Edge
         env:
           PYTHONUTF8: '1'
