@@ -42,6 +42,19 @@ class PornolabTests(unittest.TestCase):
         self.assertEqual(result['cover'], 'https://images.example/cover.jpg')
         self.assertEqual(result['thread'], URL)
 
+    def test_rendered_post_image_and_var_placeholder_priority(self):
+        image = 'https://i127.fastpic.org/big/2026/0511/52/example.jpeg'
+        thumb = 'https://i127.fastpic.org/thumb/2026/0511/52/example.jpeg'
+        rendered = (f'<img src="{image}" class="postImg postImgAligned img-right '
+                    'web-inspector-hide-shortcut" alt="pic">')
+        def parse(body):
+            return parse_topic('<h1 class="maintitle">Игра</h1>'
+                               '<div class="post_body">' + body + '</div>', URL)
+        self.assertEqual(parse(rendered)['cover'], image)
+        self.assertEqual(parse(f'<var class="postImg" title="{thumb}">{rendered}</var>')['cover'], image)
+        self.assertEqual(parse(f'<var class="postImg" title="{thumb}"></var>')['cover'], thumb)
+        self.assertEqual(parse(f'<var class="postImg" title="{thumb}"><img src="/logo.png"></var>')['cover'], thumb)
+
     def test_no_fake_success_for_login_truncated_or_unrelated_pages(self):
         for html in ('<h1 class="maintitle">Вход</h1>',
                      '<h1 class="maintitle">Игра</h1><div class="post_body">Текст',

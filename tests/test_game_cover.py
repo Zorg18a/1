@@ -19,6 +19,14 @@ class GameCoverTests(unittest.TestCase):
         self.assertEqual(result['cover'], 'https://images.example/game.jpg')
         self.assertEqual((result['name'], result['version']), ('Example', '1.2'))
 
+    def test_f95_rendered_lazy_image_is_selected_instead_of_logo(self):
+        image = 'https://attachments.f95zone.to/2021/02/123456_example.jpg'
+        post = (f'<img src="{image}" data-src="{image}" data-url="" '
+                'class="bbImage lazyloaded" data-zoom-target="1" alt="example.jpg" '
+                'title="example.jpg" width="1920" height="480" loading="lazy">')
+        result = self.parse(post, '<meta property="og:image" content="/styles/logo.png">')
+        self.assertEqual(result['cover'], image)
+
     def test_uses_social_image_when_no_post_image(self):
         result = self.parse(meta='<meta property="og:image" content="/covers/example.jpg">')
         self.assertEqual(result['cover'], 'https://f95zone.to/covers/example.jpg')

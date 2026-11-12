@@ -39,6 +39,7 @@ class _Page(HTMLParser):
         self.ignored = 0
         self.text = []
         self.images = []
+        self._vars = []
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
@@ -59,10 +60,18 @@ class _Page(HTMLParser):
             return
         if tag in ('br', 'p', 'li', 'div', 'tr'):
             self.text.append('\n')
-        if tag == 'var' and 'postImg' in classes and len(self.images) < 100:
-            self.images.append({'src': attrs.get('title') or ''})
+        if tag == 'var':
+            index = len(self.images) if 'postImg' in classes and len(self.images) < 100 else None
+            self._vars.append(index)
+            if index is not None:
+                self.images.append({'src': attrs.get('title') or ''})
         if tag == 'img' and len(self.images) < 100:
-            self.images.append(attrs)
+            index = next((i for i in reversed(self._vars) if i is not None), None)
+            if index is None:
+                self.images.append(attrs)
+            else:
+                self.images.insert(index, attrs)
+                self._vars = [i + 1 if i is not None and i >= index else i for i in self._vars]
 
     def handle_startendtag(self, tag, attrs):
         self.handle_starttag(tag, attrs)
@@ -72,6 +81,8 @@ class _Page(HTMLParser):
         if tag == 'h1':
             self.heading = False
         if self.post_depth:
+            if tag == 'var' and self._vars:
+                self._vars.pop()
             if tag in ('script', 'style') and self.ignored:
                 self.ignored -= 1
             if not self.ignored and tag in ('p', 'li', 'div', 'tr'):
