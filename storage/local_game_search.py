@@ -78,7 +78,9 @@ def _search(root, title, parse_name):
                     if entry.name.startswith('.') or entry.name.casefold().startswith('_gamesweep'):
                         continue
                     try:
-                        info = entry.stat(follow_symlinks=False)
+                        # Windows DirEntry.stat can omit file identity fields; use the
+                        # same API here and at confirmation for comparable identities.
+                        info = os.stat(entry.path, follow_symlinks=False)
                         reparse = getattr(info, 'st_file_attributes', 0) & getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0x400)
                         if stat.S_ISLNK(info.st_mode) or reparse:
                             skipped += 1

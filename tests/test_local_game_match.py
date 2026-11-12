@@ -1,5 +1,6 @@
 """Explicit association of a suggested folder, only on throwaway databases."""
 import json
+import os
 from pathlib import Path
 import tempfile
 from unittest.mock import patch
@@ -98,6 +99,21 @@ class LocalGameMatchTests(unittest.TestCase):
         archive = next(c for c in result['candidates'] if c['kind'] == 'archive')
         self.assertNotIn('token', archive)
         self.assertFalse(any(c['path'] == str(self.root / 'Hidden Badge') for c in result['candidates']))
+
+    def test_search_does_not_depend_on_direntry_stat_identity(self):
+        # On Windows DirEntry.stat may omit identity fields used by os.stat.
+        original = os.scandir
+        class Entry:
+            def __init__(self, entry): self.entry = entry
+            def __getattr__(self, name): return getattr(self.entry, name)
+            def stat(self, *args, **kwargs): raise AssertionError('DirEntry identity is not portable')
+        class Scan:
+            def __init__(self, path): self.iterator = original(path)
+            def __enter__(self): return (Entry(entry) for entry in self.iterator)
+            def __exit__(self, *args): self.iterator.close()
+        with patch('storage.local_game_search.os.scandir', side_effect=Scan):
+            token = self.find()['candidates'][0]['token']
+        self.assertEqual(self.link(token)[1], 200)
 
     def test_search_limits_and_wrong_id_are_explicit(self):
         with patch.object(local_game_search, 'MAX_ENTRIES', 1):
