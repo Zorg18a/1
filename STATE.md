@@ -14,7 +14,8 @@
   защиту путей и ACL, произвольные схемы и устойчивость к потере питания он не доказывает.
   Приложение продолжает использовать прежний запуск без backup-first; реальные данные не
   использовались. Локально прошли 288 Python-тестов (9 пропущены), 127 Node-тестов,
-  compileall, GameSweep 73/73 и `git diff --check`; Windows CI ожидается.
+  compileall, GameSweep 73/73 и `git diff --check`. [Windows CI 43252925093](https://github.com/Zorg18a/1/actions/runs/43252925093)
+  прошёл Python, Node, Edge smoke, сборку и проверку EXE.
 
 ## Репетиция миграции на снимке
 
