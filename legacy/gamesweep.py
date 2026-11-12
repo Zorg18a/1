@@ -551,8 +551,8 @@ class Store:
                 games, root = list(self.games), self.root
             try:
                 cb(games, root)
-            except Exception:
-                pass
+            except Exception as e:
+                with self.lock: self.error = 'Синхронизация библиотеки не завершена (возможны частичные изменения): ' + str(e)[:300]
 
     def rebuild(self):
         self.groups = build_groups(self.games)

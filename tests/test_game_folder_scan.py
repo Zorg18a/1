@@ -111,7 +111,7 @@ root = app.BASE / 'games'; game = root / 'genre' / 'College Traits v1.0'
 (game / 'saves').mkdir(parents=True); (game / 'saves' / 'slot.sav').write_bytes(b'keep')
 app.cfg['folder'] = str(app.BASE / 'downloads')
 app.cfg['games_root'] = str(root)
-app.sql("insert into items(title,kind,path,url,info) values('existing','game',?,'game:existing','{}')", (str(game),))
+app.sql("insert into items(title,kind,path,url,info) values('existing','game',?,'game:existing','{}')", (str(root / 'unseen'),))
 server = ThreadingHTTPServer(('127.0.0.1',0), app.H)
 thread = threading.Thread(target=server.serve_forever); thread.start()
 def post(data):

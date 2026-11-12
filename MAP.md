@@ -34,6 +34,8 @@
 - `core/game_check.py`, `ui/game-check-resume.js` — сеансовый снимок проверки тем и явное продолжение не начатых элементов.
 - `tests/test_game_check_batch.py`, `tests/test_game_check_resume.py`, `tests/test_game_check_resume_http.py`, `tests/test_game_check_resume.mjs`, `scripts/browser_game_check_resume_smoke.py` — 86 синтетических игр, отмена, ошибки, конкуренция, HTTP и Edge.
 - `storage/local_game_search.py`, `storage/extra_game_root.py`, `storage/game_associations.py`, `core/local_game_match.py`, `core/game_card_match.py`, `ui/local-game-search.js` — ограниченный поиск по настроенному или разовому корню, снимок связей и подтверждаемая связь только внутри настроенного корня.
+- `storage/game_card_write.py`, `core/game_card_settings.py` — защита ручного пути и сравнение снимков карточки при записи сканера, метаданных и настроек.
+- `tests/test_game_card_write.py`, `tests/test_manual_game_scan_guard.py` — конфликты, отмена транзакции и повторное сканирование на временных данных.
 - `tests/test_extra_game_search.py` — проверка разового корня, ограничений путей и отсутствия записей/токенов привязки.
 - `tests/test_local_game_match.py`, `tests/test_local_game_http.py`, `tests/test_local_game_search.mjs`, `scripts/browser_local_game_smoke.py` — временные данные, HTTP, UI и Edge для связывания.
 - `docs/rebuild-plan.md` — план объединения сценариев, дублирующихся экранов и безопасного перехода.

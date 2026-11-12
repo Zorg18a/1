@@ -372,8 +372,8 @@ $('gpanel').onclick=async e=>{const x=GA.find(y=>y.id==GOPEN);if(!x)return;const
  if(b.dataset.gl!==undefined)window.open(x.g.links[+b.dataset.gl].url,'_blank','noopener');
  if(b.dataset.sp)window.open(b.dataset.sp,'_blank','noopener');
  if(b.dataset.pg){const k=b.dataset.pg;GGEN.has(k)?GGEN.delete(k):GGEN.add(k);closePanel();drawGames()}};
-$('gpanel').onchange=async e=>{const x=GA.find(y=>y.id==GOPEN);if(x&&e.target.id=='gauto'){await api('/api/game/set',{id:x.id,auto:e.target.checked});x.g.auto=e.target.checked;toast('Сохранено')}};
-$('gpanel').addEventListener('focusout',async e=>{const x=GA.find(y=>y.id==GOPEN);if(x&&e.target.id=='gnote'&&e.target.value!==x.g.note){await api('/api/game/set',{id:x.id,note:e.target.value});x.g.note=e.target.value;toast('Заметка сохранена')}});
+$('gpanel').onchange=async e=>{const x=GA.find(y=>y.id==GOPEN);if(x&&e.target.id=='gauto'){const v=e.target.checked;try{const r=await api('/api/game/set',{id:x.id,auto:v});if(!r.ok)throw Error(r.error||'Ошибка сохранения');x.g.auto=v;toast('Сохранено')}catch(err){e.target.checked=x.g.auto;toast((err.message||'Нет ответа')+'. Обновите карточку и проверьте состояние.')}}};
+$('gpanel').addEventListener('focusout',async e=>{const x=GA.find(y=>y.id==GOPEN);if(x&&e.target.id=='gnote'&&e.target.value!==x.g.note){const v=e.target.value;try{const r=await api('/api/game/set',{id:x.id,note:v});if(!r.ok)throw Error(r.error||'Ошибка сохранения');x.g.note=v;toast('Заметка сохранена')}catch(err){toast((err.message||'Нет ответа')+'. Обновите карточку и проверьте состояние.')}}});
 /* --- настройки (сохраняются сами) --- */
 const SET=['games_check_hours','manga_via','folder','res','afmt','subs_on','subs_langs','thumbs','skip','workers','limit_mb','depth','maxp','videos','show_browser','cookie_file','cookie_browser','games_root'];
 async function loadSet(){const c=await api('/api/settings');SET.forEach(k=>{const e=$('s_'+k);if(!e)return;e.type=='checkbox'?e.checked=!!c[k]:e.value=c[k]??''});$('s_subs_langs').disabled=!c.subs_on;loadExt()}

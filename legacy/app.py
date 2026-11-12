@@ -5,8 +5,8 @@ from http.server import BaseHTTPRequestHandler
 from core.local_http import LocalHTTPServer as ThreadingHTTPServer
 from pathlib import Path
 from storage.database import open_database, execute
-from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search, game_scan, reader_manifest
-from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress, backup_download, reader_images, recent_items, ui_assets, download_preflight, game_card_match, game_check as game_check_batch
+from storage import cover_cache, cover_download, game_tags, incoming_downloads, delete_files, library_search, game_scan, reader_manifest, game_card_write
+from core import gamelib, byte_range, media_outcome, delete_guard, inbox_lock, legacy_reader_progress, backup_download, reader_images, recent_items, ui_assets, download_preflight, game_card_match, game_card_settings, game_check as game_check_batch
 from core.classify import classify
 from core.game_sources import quick_game_request
 from core.game_tags import save_tags_request
@@ -524,9 +524,9 @@ def sync_games(games, root):  # установленные игры: слива�
             try: cover = cover_cache.cache_local_cover(newest['path'], cfg['folder'])
             except (OSError, ValueError) as e: logging.warning('Не удалось сохранить обложку %s: %s', title, e)
         if row:
-            sql("update items set path=?, size=?, info=?, thumb=case when coalesce(thumb,'')=? and ?!='' then ? else thumb end where id=?", (newest['path'], int(newest.get('size') or 0), json.dumps(info, ensure_ascii=False), row['thumb'] or '', cover, cover, row['id']))
+            game_card_write.scan(db, lock, row, newest['path'], int(newest.get('size') or 0), json.dumps(info, ensure_ascii=False), cover)
         else:
-            sql("insert into items(title,author,topic,kind,path,root,url,size,thumb,src,info) values(?,?,?,?,?,?,?,?,?,?,?)", (title, Path(root).name or 'Игры', 'Игры', 'game', newest['path'], '', 'game:' + key, int(newest.get('size') or 0), cover, root, json.dumps(info, ensure_ascii=False)))
+            game_card_write.insert_scan(db, lock, title, Path(root).name or 'Игры', newest['path'], key, int(newest.get('size') or 0), cover, root, json.dumps(info, ensure_ascii=False))
     # A different layout or incomplete scan is not evidence that unseen cards should be deleted.
 def manga_extra(r):
     if r['kind'] == 'game':
@@ -762,7 +762,6 @@ def name_key(name):
 def ginfo(r):
     try: return json.loads(r['info'] or '{}')
     except Exception: return {}
-def ginfo_save(rid, info): sql('update items set info=? where id=?', (json.dumps(info, ensure_ascii=False), rid))
 def find_game(key, title='', path=None): return game_card_match.find_game(sql, name_key, key, title, path)
 def game_view(r):  # всё, что нужно карточке в библиотеке
     i = ginfo(r); m = i.get('meta', {}); inst = i.get('inst', {}); dl = bool(r['path'] and Path(r['path']).exists())
@@ -781,7 +780,7 @@ def apply_meta(meta, thread):  # создаёт или обновляет кар
         try: cover = fetch_cover(meta['cover'], thread, key)
         except Exception as e: logging.warning('Не удалось загрузить обложку %s: %s', name, e)
     if row:
-        sql("update items set title=?, author=?, src=?, info=?, thumb=case when coalesce(thumb,'')=? and ?!='' then ? else thumb end where id=?", (name, meta.get('developer') or row['author'], thread, json.dumps(info, ensure_ascii=False), row['thumb'] or '', cover, cover, row['id']))
+        game_card_write.metadata(db, lock, row, name, meta.get('developer') or row['author'], thread, json.dumps(info, ensure_ascii=False), cover)
         return row['id']
     sql("insert into items(title,author,topic,kind,path,root,url,size,thumb,src,info) values(?,?,?,?,?,?,?,?,?,?,?)", (name, meta.get('developer') or 'Игры', 'Игры', 'game', '', '', 'game:' + key, 0, cover, thread, json.dumps(info, ensure_ascii=False)))
     return sql("select id from items where url=?", ('game:' + key,))[0]['id']
@@ -991,14 +990,7 @@ class H(BaseHTTPRequestHandler):
         if p == '/api/game/zip-inspect': return self.js(*inspect_request(d, lambda item_id: next(iter(sql("select * from items where id=? and kind='game'", (item_id,))), None), gamesweep.parse_name, cfg['folder'], cfg.get('games_root', '')))
         if p == '/api/game/incoming': return self.js(*preview_request(d, lambda i: next(iter(sql("select * from items where id=? and kind='game'", (i,))),None), game_view, gamesweep.parse_name, cfg['folder'], cfg.get('games_root',''), db,lock,cfg))
         if p == '/api/game/tags': return self.js(*save_tags_request(d, lambda item_id, tags: game_tags.replace_tags(db, lock, item_id, tags)))
-        if p == '/api/game/set':
-            r = sql("select * from items where id=? and kind='game'", (d.get('id'),))
-            if r:
-                i = ginfo(r[0])
-                if 'auto' in d: i['auto'] = bool(d['auto'])
-                if 'note' in d: i['note'] = str(d['note'])[:2000]
-                ginfo_save(r[0]['id'], i)
-            return self.js({'ok': 1})
+        if p == '/api/game/set': return self.js(*game_card_settings.save(d, lambda i: next(iter(sql("select * from items where id=? and kind='game'", (i,))), None), lambda r, i: game_card_write.settings(db, lock, r, i)))
         if p == '/api/inbox/confirm': return self.js(inbox_confirm(d))
         if p == '/api/inbox/dismiss':
             if not sql("select 1 from inbox where batch=? and status in ('pending','queued','closing')", (d['batch'],)): sql('delete from inbox where batch=?', (d['batch'],))

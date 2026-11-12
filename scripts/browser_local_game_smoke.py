@@ -72,6 +72,21 @@ def run(root):
                 expect(panel.locator('.update-preview')).to_be_visible()
                 assert app.sql('select path from items where id=1')[0]['path'] == str(folder)
                 assert (folder / 'saves' / 'slot.sav').read_bytes() == b'keep'
+                original = app.game_card_write.settings
+                def fail_save(*args):
+                    raise app.game_card_write.CardConflict('Карточка изменилась; обновите её')
+                app.game_card_write.settings = fail_save
+                try:
+                    page.locator('#gnote').fill('new note')
+                    page.locator('#gclose').focus()
+                    expect(page.locator('#toastBox')).to_contain_text('Карточка изменилась')
+                    assert json.loads(app.sql('select info from items where id=1')[0]['info'])['note'] == 'keep'
+                finally:
+                    app.game_card_write.settings = original
+                page.locator('#gnote').focus(); page.locator('#gclose').focus()
+                expect(page.locator('#toastBox')).to_contain_text('Заметка сохранена')
+                saved = json.loads(app.sql('select info from items where id=1')[0]['info'])
+                assert saved['note'] == 'new note' and saved['mediahub_manual_game_path_v1'] == str(folder)
                 assert panel.evaluate('e => e.scrollWidth <= e.clientWidth + 1')
                 print('Edge: explicit local game association passed')
             finally:
