@@ -4,6 +4,8 @@ import re
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 
+from core import game_cover
+
 STATUSES = {'completed': 'Завершена', 'abandoned': 'Заброшена', 'on hold': 'Приостановлена'}
 ENGINES = {"ren'py", 'renpy', 'unity', 'rpgm', 'rpg maker', 'unreal engine', 'html', 'java', 'flash', 'qsp', 'webgl', 'tads', 'adrift', 'rags', 'wolf rpg', 'others'}
 HOSTS = ('mega.nz', 'gofile.io', 'mediafire.com', 'workupload.com', 'pixeldrain.com', 'drive.google.com', 'mixdrop', 'anonfiles', 'zippyshare', 'dropbox.com', 'uploadhaven', 'krakenfiles', 'catbox.moe', 'buzzheavier', 'datanodes', 'vikingfile')
@@ -18,7 +20,7 @@ class _P(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.meta, self.title, self.h1, self.labels, self.tags, self.links, self.lines = {}, '', '', [], [], [], []
-        self.rows = []; self._rl = []; self._skip = 0
+        self.rows = []; self._rl = []; self._skip = 0; self.images = []
         self._in_title = self._in_h1 = 0; self._label = None; self._tag = None; self._post = 0; self._depth = 0; self._post_done = False; self._buf = ''; self._a = None; self._h1_buf = ''
 
     def handle_starttag(self, tag, attrs):
@@ -34,7 +36,7 @@ class _P(HTMLParser):
             if tag == 'div': self._depth += 1
             if tag in ('br', 'p', 'li', 'tr') or (tag == 'div'): self._flush()
             if tag == 'a' and a.get('href'): self._a = {'href': a['href'], 'text': ''}
-            if tag == 'img' and not self.meta.get('_img') and (a.get('src') or a.get('data-src')): self.meta['_img'] = a.get('data-src') or a.get('src')
+            if tag == 'img' and len(self.images) < 100: self.images.append(a)
 
     def handle_endtag(self, tag):
         if tag in ('script', 'style') and self._skip: self._skip -= 1
@@ -136,8 +138,7 @@ def parse_thread(html, url=''):
     genres = list(p.tags)
     for g in re.split(r'\s*,\s*', fields.get('genre', '')):
         if g and g.lower() not in [x.lower() for x in genres]: genres.append(g)
-    cover = p.meta.get('og:image') or p.meta.get('twitter:image') or p.meta.get('_img') or ''
-    if cover and url: cover = urljoin(url, cover)
+    cover = game_cover.choose(p.images, p.meta, url)
     links, support, platform, seen = [], [], '', set()
     for text, items in p.rows:
         good = []; dev_row = bool(re.match(r'^(Developer|Support|Links?)\b', text, re.I))
